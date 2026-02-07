@@ -67,6 +67,7 @@ class WhatsAppConnector(object):
         self.verify_code = str(random.randint(100000, 999999))
         self.last_sent_text = None
         self.bridge_path = os.path.join(os.path.dirname(__file__), "bridge.js")
+        self.is_windows = os.name == 'nt'
 
     def _ensure_node(self):
         if not shutil.which("node"):
@@ -78,7 +79,7 @@ class WhatsAppConnector(object):
         """Prepare environment to find global node_modules."""
         env = os.environ.copy()
         try:
-            npm_root = subprocess.check_output(["npm", "root", "-g"], text=True, stderr=subprocess.DEVNULL).strip()
+            npm_root = subprocess.check_output(["npm", "root", "-g"], text=True, stderr=subprocess.DEVNULL, shell=self.is_windows).strip()
             existing_path = env.get("NODE_PATH", "")
             env["NODE_PATH"] = f"{npm_root}{os.pathsep}{existing_path}" if existing_path else npm_root
         except:
@@ -87,22 +88,22 @@ class WhatsAppConnector(object):
 
     def _ensure_deps(self):
         # Check global first using npm list -g
-        check_global = subprocess.run(["npm", "list", "-g", "@whiskeysockets/baileys", "--depth=0"], capture_output=True)
+        check_global = subprocess.run(["npm", "list", "-g", "@whiskeysockets/baileys", "--depth=0"], capture_output=True, shell=self.is_windows)
         if check_global.returncode == 0:
             return
 
         # Check local using npm list
-        check_local = subprocess.run(["npm", "list", "@whiskeysockets/baileys", "--depth=0"], capture_output=True)
+        check_local = subprocess.run(["npm", "list", "@whiskeysockets/baileys", "--depth=0"], capture_output=True, shell=self.is_windows)
         if check_local.returncode == 0:
             return
 
         print("[*] Installing WhatsApp bridge dependencies globally...")
         try:
             # Attempt global install as requested
-            subprocess.run(["npm", "install", "-g", "@whiskeysockets/baileys", "qrcode-terminal", "pino"], check=True)
+            subprocess.run(["npm", "install", "-g", "@whiskeysockets/baileys", "qrcode-terminal", "pino"], check=True, shell=self.is_windows)
         except subprocess.CalledProcessError:
             print("[!] Global install failed. Attempting local install...")
-            subprocess.run(["npm", "install", "@whiskeysockets/baileys", "qrcode-terminal", "pino"], check=True)
+            subprocess.run(["npm", "install", "@whiskeysockets/baileys", "qrcode-terminal", "pino"], check=True, shell=self.is_windows)
 
     def listen(self, callback):
         if not self._ensure_node(): return
@@ -113,7 +114,7 @@ class WhatsAppConnector(object):
         self.process = subprocess.Popen(
             ["node", self.bridge_path],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None,
-            env=env, text=True, bufsize=1
+            env=env, text=True, bufsize=1, shell=self.is_windows
         )
 
         def output_reader():

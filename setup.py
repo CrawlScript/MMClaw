@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="pipclaw",
-    version="0.0.1",
-    
+    version="0.0.2",
+
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
 
