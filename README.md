@@ -26,7 +26,7 @@ No compiling, no heavy setup. Just pip and run.
 
 ```bash
 pip install pipclaw
-pipclaw start
+pipclaw run
 ```
 
 ## 🛠 The Philosophy

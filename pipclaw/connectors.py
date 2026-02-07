@@ -25,20 +25,20 @@ class TerminalConnector(object):
         print(f"\r🐈 PipClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
 
 class TelegramConnector(object):
-    def __init__(self, token, authorized_user_id):
+    def __init__(self, token, telegram_authorized_user_id):
         self.bot = telebot.TeleBot(token)
-        self.authorized_user_id = int(authorized_user_id)
+        self.telegram_authorized_user_id = int(telegram_authorized_user_id)
         
     def listen(self, callback):
         print(f"\n--- PipClaw Kernel Active (Telegram Mode) ---")
-        print(f"[*] Listening for messages from User ID: {self.authorized_user_id}")
+        print(f"[*] Listening for messages from User ID: {self.telegram_authorized_user_id}")
         
-        @self.bot.message_handler(func=lambda message: message.from_user.id == self.authorized_user_id)
+        @self.bot.message_handler(func=lambda message: message.from_user.id == self.telegram_authorized_user_id)
         def handle_message(message):
             print(f"📩 Telegram: {message.text}")
             callback(message.text)
             
-        @self.bot.message_handler(func=lambda message: message.from_user.id != self.authorized_user_id)
+        @self.bot.message_handler(func=lambda message: message.from_user.id != self.telegram_authorized_user_id)
         def unauthorized(message):
             self.bot.reply_to(message, "🚫 Unauthorized. I only respond to my master.")
 
@@ -46,7 +46,7 @@ class TelegramConnector(object):
 
     def send(self, message):
         try:
-            self.bot.send_message(self.authorized_user_id, f"🐈 {message}")
+            self.bot.send_message(self.telegram_authorized_user_id, f"🐈 {message}")
         except Exception as e:
             print(f"[!] Telegram Send Error: {e}")
 
@@ -54,7 +54,7 @@ class TelegramConnector(object):
         path = os.path.expanduser(path)
         try:
             with open(path, 'rb') as f:
-                self.bot.send_document(self.authorized_user_id, f)
+                self.bot.send_document(self.telegram_authorized_user_id, f)
         except Exception as e:
             self.send(f"Error sending file: {str(e)}")
 

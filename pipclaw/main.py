@@ -122,8 +122,8 @@ def run_setup(existing_config=None):
         config["preferred_mode"] = "telegram"
         print("\n--- 🛠 Telegram Setup ---")
         config["telegram_token"] = ask("Bot API Token", "telegram_token", "")
-        user_id = ask("Your User ID", "authorized_user_id", "0")
-        config["authorized_user_id"] = int(user_id) if str(user_id).isdigit() else 0
+        user_id = ask("Your User ID", "telegram_authorized_user_id", "0")
+        config["telegram_authorized_user_id"] = int(user_id) if str(user_id).isdigit() else 0
     elif choice == "3":
         config["preferred_mode"] = "whatsapp"
         print("\n--- 🛠 WhatsApp Setup ---")
@@ -136,8 +136,14 @@ def run_setup(existing_config=None):
     return config
 
 def main():
+    import sys
+    # Force unbuffered output for nohup/logging
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
+
     parser = argparse.ArgumentParser(description="PipClaw: Your autonomous AI agent.")
-    parser.add_argument("command", nargs="?", help="Command to run (start, config)")
+    parser.add_argument("command", nargs="?", help="Command to run (run, config)")
     args = parser.parse_args()
 
     config = ConfigManager.load()
@@ -146,8 +152,8 @@ def main():
         config = run_setup(config)
         return
     
-    # Empty command or 'start' both trigger the agent
-    if args.command not in [None, "start"]:
+    # Empty command or 'run' both trigger the agent
+    if args.command not in [None, "run"]:
         parser.print_help()
         return
 
@@ -157,7 +163,7 @@ def main():
     # Mode Dispatch
     mode = config.get("preferred_mode")
     if mode == "telegram":
-        connector = TelegramConnector(config["telegram_token"], config["authorized_user_id"])
+        connector = TelegramConnector(config["telegram_token"], config["telegram_authorized_user_id"])
     elif mode == "whatsapp":
         connector = WhatsAppConnector()
     else:

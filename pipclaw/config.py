@@ -67,7 +67,7 @@ class ConfigManager(object):
         "api_key": "sk-your-key-here",
         "base_url": "https://api.deepseek.com",
         "telegram_token": "your-bot-token-here",
-        "authorized_user_id": 0,
+        "telegram_authorized_user_id": 0,
         "whatsapp_authorized_id": None,
         "preferred_mode": "terminal"
     }
