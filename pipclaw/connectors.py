@@ -74,12 +74,26 @@ class WhatsAppConnector(object):
             return False
         return True
 
+    def _get_node_env(self):
+        """Prepare environment to find global node_modules."""
+        env = os.environ.copy()
+        try:
+            npm_root = subprocess.check_output(["npm", "root", "-g"], text=True, stderr=subprocess.DEVNULL).strip()
+            existing_path = env.get("NODE_PATH", "")
+            env["NODE_PATH"] = f"{npm_root}{os.pathsep}{existing_path}" if existing_path else npm_root
+        except:
+            pass
+        return env
+
     def _ensure_deps(self):
-        # Check if packages are already available (locally or globally)
-        check_script = "try { require('@whiskeysockets/baileys'); require('qrcode-terminal'); process.exit(0); } catch(e) { process.exit(1); }"
-        result = subprocess.run(["node", "-e", check_script], capture_output=True)
-        
-        if result.returncode == 0:
+        # Check global first using npm list -g
+        check_global = subprocess.run(["npm", "list", "-g", "@whiskeysockets/baileys", "--depth=0"], capture_output=True)
+        if check_global.returncode == 0:
+            return
+
+        # Check local using npm list
+        check_local = subprocess.run(["npm", "list", "@whiskeysockets/baileys", "--depth=0"], capture_output=True)
+        if check_local.returncode == 0:
             return
 
         print("[*] Installing WhatsApp bridge dependencies globally...")
@@ -87,7 +101,7 @@ class WhatsAppConnector(object):
             # Attempt global install as requested
             subprocess.run(["npm", "install", "-g", "@whiskeysockets/baileys", "qrcode-terminal", "pino"], check=True)
         except subprocess.CalledProcessError:
-            print("[!] Global install failed (permissions?). Attempting local install...")
+            print("[!] Global install failed. Attempting local install...")
             subprocess.run(["npm", "install", "@whiskeysockets/baileys", "qrcode-terminal", "pino"], check=True)
 
     def listen(self, callback):
@@ -95,16 +109,7 @@ class WhatsAppConnector(object):
         self._ensure_deps()
         self.callback = callback
         
-        # Prepare environment to find global node_modules
-        env = os.environ.copy()
-        try:
-            npm_root = subprocess.check_output(["npm", "root", "-g"], text=True).strip()
-            # Combine existing NODE_PATH with global root
-            existing_path = env.get("NODE_PATH", "")
-            env["NODE_PATH"] = f"{npm_root}{os.pathsep}{existing_path}" if existing_path else npm_root
-        except:
-            pass
-
+        env = self._get_node_env()
         self.process = subprocess.Popen(
             ["node", self.bridge_path],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None,
