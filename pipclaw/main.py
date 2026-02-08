@@ -4,7 +4,7 @@ import urllib.request
 import json
 from .config import ConfigManager
 from .kernel import PipClaw
-from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector
+from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector
 
 def run_setup(existing_config=None):
     print("\n--- 🐈 PipClaw Setup Wizard ---")
@@ -115,10 +115,35 @@ def run_setup(existing_config=None):
     print("1. Terminal Mode")
     print("2. Telegram Mode")
     print("3. WhatsApp Mode (Scan QR Code)")
+    print("4. Feishu (飞书) Mode")
     
-    choice = input("Select mode (1, 2, or 3) [Keep current]: ").strip()
+    choice = input("Select mode (1, 2, 3, or 4) [Keep current]: ").strip()
 
-    if choice == "2":
+    if choice == "4":
+        config["preferred_mode"] = "feishu"
+        print("\n--- 🛠 Feishu (飞书) Setup ---")
+        print("[*] 第一步：请登录飞书开放平台 (https://open.feishu.cn/app) 并创建一个“企业自建应用”。")
+        input("    完成后请按回车键继续...")
+        print("[*] 第二步：在“添加应用能力”中，点击机器人下方的“添加”按钮。")
+        input("    完成后请按回车键继续...")
+        print("[*] 第三步：左侧菜单栏选择“凭证与基础信息”，获取并输入以下信息：")
+        config["feishu_app_id"] = ask("App ID", "feishu_app_id", "")
+        config["feishu_app_secret"] = ask("App Secret", "feishu_app_secret", "")
+        print("[*] 第四步：左侧菜单栏选择“权限管理”，点击“批量导入/导出权限”，复制并粘贴以下 JSON：")
+        print("\n{\n  \"scopes\": {\n    \"tenant\": [\n      \"contact:user.base:readonly\",\n      \"im:chat\",\n      \"im:chat:read\",\n      \"im:chat:update\",\n      \"im:message\",\n      \"im:message.group_at_msg:readonly\",\n      \"im:message.p2p_msg:readonly\",\n      \"im:message:send_as_bot\",\n      \"im:resource\"\n    ],\n    \"user\": []\n  }\n}\n")
+        print("    然后点击“下一步”，点击“确认新增权限”，然后点击“申请开通”，最后点击“确认”。")
+        input("    完成后请按回车键继续...")
+        print("\n[*] 第五步：在飞书平台左侧菜单选择“事件与回调”。")
+        print("    为了能够开启“长连接”，请在另一个终端运行以下命令（已自动填充您的 ID 和 Secret）：")
+        print(f"\n    python3 -c \"import lark_oapi as lark; h=lark.EventDispatcherHandler.builder('','').build(); c=lark.ws.Client(app_id='{config['feishu_app_id']}', app_secret='{config['feishu_app_secret']}', event_handler=h); c.start()\"\n")
+        print("    运行后，返回网页，左侧菜单栏选择“事件与回调”，在“事件配置-订阅方式”中选择“使用长连接接收事件”，然后点击“保存”。")
+        input("    完成后（且已关闭上述临时终端）请按回车键继续...")
+        print("[*] 第六步：在“事件与回调”页面，点击“添加事件”，搜索并添加“接收消息 (im.message.receive_v1)”。")
+        input("    完成后请按回车键继续...")
+        print("[*] 第七步：左侧菜单选择“版本管理与发布”，点击“创建版本”，输入相关信息，保存后确认发布。")
+        input("    完成后请按回车键继续...")
+        print("\n[✓] 飞书配置完成！在飞书APP中搜索刚才创建的应用名，和它聊天即可。")
+    elif choice == "2":
         config["preferred_mode"] = "telegram"
         print("\n--- 🛠 Telegram Setup ---")
         config["telegram_token"] = ask("Bot API Token", "telegram_token", "")
@@ -169,6 +194,8 @@ def main():
         connector = TelegramConnector(config["telegram_token"], config["telegram_authorized_user_id"])
     elif mode == "whatsapp":
         connector = WhatsAppConnector()
+    elif mode == "feishu":
+        connector = FeishuConnector(config["feishu_app_id"], config["feishu_app_secret"])
     else:
         connector = TerminalConnector()
 

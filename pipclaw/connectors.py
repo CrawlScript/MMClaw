@@ -5,7 +5,14 @@ import threading
 import telebot
 import shutil
 import random
+import json
 from .config import ConfigManager
+
+try:
+    import lark_oapi as lark
+    from lark_oapi.api.im.v1 import *
+except ImportError:
+    lark = None
 
 class TerminalConnector(object):
     def listen(self, callback):
@@ -23,6 +30,93 @@ class TerminalConnector(object):
     def send_file(self, path):
         full_path = os.path.expanduser(path)
         print(f"\r🐈 PipClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
+
+class FeishuConnector(object):
+    def __init__(self, app_id, app_secret):
+        if lark is None:
+            raise ImportError("lark-oapi is required for Feishu mode. Install it with: pip install lark-oapi")
+        self.app_id = app_id
+        self.app_secret = app_secret
+        self.callback = None
+        self.last_message_id = None
+        self.config = ConfigManager.load()
+        self.authorized_id = self.config.get("feishu_authorized_id")
+        self.verify_code = str(random.randint(100000, 999999))
+        self.client = lark.Client.builder() \
+            .app_id(app_id) \
+            .app_secret(app_secret) \
+            .log_level(lark.LogLevel.INFO) \
+            .build()
+
+    def _handle_message(self, data: P2ImMessageReceiveV1) -> None:
+        try:
+            sender_id = data.event.sender.sender_id.open_id
+            msg_dict = json.loads(data.event.message.content)
+            text = msg_dict.get("text", "").strip()
+            
+            # Always store last message_id for reply attempt
+            self.last_message_id = data.event.message.message_id
+
+            if not self.authorized_id:
+                if text == self.verify_code:
+                    self.authorized_id = sender_id
+                    self.config["feishu_authorized_id"] = sender_id
+                    ConfigManager.save(self.config)
+                    print(f"\n[⭐] AUTH SUCCESS! PipClaw is now locked to Feishu User: {sender_id}")
+                    self.send("🐈 Verification Successful! I am now your personal agent.")
+                    return
+                else:
+                    return
+
+            if sender_id != self.authorized_id:
+                return
+            
+            if text and self.callback:
+                print(f"📩 Feishu: {text}")
+                self.callback(text)
+        except Exception as e:
+            print(f"[!] Feishu Parse Error: {e}")
+        return None
+
+    def listen(self, callback):
+        self.callback = callback
+        print(f"\n--- PipClaw Kernel Active (Feishu Mode) ---")
+        
+        if not self.authorized_id:
+            print(f"[🔐] FEISHU VERIFICATION REQUIRED")
+            print(f"[*] PLEASE SEND THIS CODE TO THE BOT ON FEISHU: {self.verify_code}")
+
+        event_handler = lark.EventDispatcherHandler.builder("", "") \
+            .register_p2_im_message_receive_v1(self._handle_message) \
+            .build()
+
+        ws_client = lark.ws.Client(
+            app_id=self.app_id,
+            app_secret=self.app_secret,
+            event_handler=event_handler,
+            log_level=lark.LogLevel.INFO
+        )
+        ws_client.start()
+
+    def send(self, message):
+        if not self.last_message_id: 
+            return
+        
+        reply_body = json.dumps({"text": message})
+        request = ReplyMessageRequest.builder() \
+            .message_id(self.last_message_id) \
+            .request_body(ReplyMessageRequestBody.builder() \
+                .content(reply_body) \
+                .msg_type("text") \
+                .build()) \
+            .build()
+            
+        response: ReplyMessageResponse = self.client.im.v1.message.reply(request)
+        if not response.success():
+            print(f"[!] Feishu Reply Error: {response.code}, {response.msg}")
+
+    def send_file(self, path):
+        self.send(f"📄 [File] {path}")
 
 class TelegramConnector(object):
     def __init__(self, token, telegram_authorized_user_id):

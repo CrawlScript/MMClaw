@@ -71,6 +71,9 @@ class ConfigManager(object):
         "telegram_token": "your-bot-token-here",
         "telegram_authorized_user_id": 0,
         "whatsapp_authorized_id": None,
+        "feishu_app_id": "cli_xxx",
+        "feishu_app_secret": "xxx",
+        "feishu_authorized_id": None,
         "preferred_mode": "terminal"
     }
     CONFIG_DIR = Path.home() / ".pipclaw"
