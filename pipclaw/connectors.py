@@ -96,18 +96,20 @@ class WhatsAppConnector(object):
         missing = []
 
         print("[*] Verifying WhatsApp bridge dependencies...")
+        env = self._get_node_env()
+        
         for dep in deps:
-            # Check global first
-            check_global = subprocess.run(["npm", "list", "-g", dep, "--depth=0"], capture_output=True, shell=self.is_windows)
-            if check_global.returncode == 0:
-                continue
+            # Check if we can require the dependency using node
+            # This is much faster than 'npm list'
+            check = subprocess.run(
+                ["node", "-e", f"require('{dep}')"],
+                env=env,
+                capture_output=True,
+                shell=self.is_windows
+            )
             
-            # Check local
-            check_local = subprocess.run(["npm", "list", dep, "--depth=0"], capture_output=True, shell=self.is_windows)
-            if check_local.returncode == 0:
-                continue
-            
-            missing.append(dep)
+            if check.returncode != 0:
+                missing.append(dep)
 
         if not missing:
             self._deps_checked = True
