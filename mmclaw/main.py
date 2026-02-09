@@ -3,11 +3,11 @@ import argparse
 import urllib.request
 import json
 from .config import ConfigManager
-from .kernel import PipClaw
+from .kernel import MMClaw
 from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector
 
 def run_setup(existing_config=None):
-    print("\n--- 🐈 PipClaw Setup Wizard ---")
+    print("\n--- 🐈 MMClaw Setup Wizard ---")
     config = existing_config.copy() if existing_config else ConfigManager.DEFAULT_CONFIG.copy()
 
     def ask(prompt, key, default_val):
@@ -143,7 +143,7 @@ def run_setup(existing_config=None):
         print("[*] 第七步：左侧菜单选择“版本管理与发布”，点击“创建版本”，输入相关信息，保存后确认发布。")
         input("    完成后请按回车键继续...")
 
-        print("\n[✓] 飞书配置完成！运行 pipclaw 后，在飞书 APP 中搜索刚才创建的应用名，并发送终端显示的 6 位验证码即可完成身份绑定。")
+        print("\n[✓] 飞书配置完成！运行 mmclaw 后，在飞书 APP 中搜索刚才创建的应用名，并发送终端显示的 6 位验证码即可完成身份绑定。")
     elif choice == "2":
         config["preferred_mode"] = "telegram"
         print("\n--- 🛠 Telegram Setup ---")
@@ -168,7 +168,7 @@ def main():
         sys.stdout.reconfigure(line_buffering=True)
         sys.stderr.reconfigure(line_buffering=True)
 
-    parser = argparse.ArgumentParser(description="PipClaw: Your autonomous AI agent.")
+    parser = argparse.ArgumentParser(description="MMClaw: Your autonomous multimodal AI agent.")
     parser.add_argument("command", nargs="?", help="Command to run (run, config)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output (show raw LLM and Tool data)")
     args = parser.parse_args()
@@ -201,10 +201,10 @@ def main():
         connector = TerminalConnector()
 
     if config["api_key"] == "sk-your-key-here":
-        print(f"\n[❌] API Key missing. Please run 'pipclaw config' or edit {ConfigManager.CONFIG_FILE}")
+        print(f"\n[❌] API Key missing. Please run 'mmclaw config' or edit {ConfigManager.CONFIG_FILE}")
         return
     
-    app = PipClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(mode=mode))
+    app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(mode=mode))
     app.run()
 
 if __name__ == "__main__":

@@ -4,12 +4,12 @@ import shutil
 from pathlib import Path
 
 class SkillManager(object):
-    HOME_SKILLS_DIR = Path.home() / ".pipclaw" / "skills"
+    HOME_SKILLS_DIR = Path.home() / ".mmclaw" / "skills"
     PKG_SKILLS_DIR = Path(__file__).parent / "skills"
 
     @classmethod
     def sync_skills(cls):
-        """Copy skills from package to ~/.pipclaw/skills if not exists."""
+        """Copy skills from package to ~/.mmclaw/skills if not exists."""
         if not cls.HOME_SKILLS_DIR.exists():
             cls.HOME_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
         
@@ -41,7 +41,7 @@ class SkillManager(object):
 
 class ConfigManager(object):
     BASE_SYSTEM_PROMPT = (
-        "You are PipClaw, an autonomous AI agent. "
+        "You are MMClaw, an autonomous AI agent. "
         "You MUST always respond with a SINGLE valid JSON object. "
         "Do not include any text outside the JSON block.\n\n"
         "IMPORTANT: When you use 'tools', you MUST STOP your response immediately after the JSON block. "
@@ -76,8 +76,8 @@ class ConfigManager(object):
         "feishu_authorized_id": None,
         "preferred_mode": "terminal"
     }
-    CONFIG_DIR = Path.home() / ".pipclaw"
-    CONFIG_FILE = CONFIG_DIR / "pipclaw.json"
+    CONFIG_DIR = Path.home() / ".mmclaw"
+    CONFIG_FILE = CONFIG_DIR / "mmclaw.json"
 
     @classmethod
     def load(cls):

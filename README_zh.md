@@ -1,22 +1,24 @@
-# 🐈 PipClaw
+# 🐈 MMClaw
 
 超轻量级、纯 Python 开发的 AI Agent 内核。
 
-**主页:** [https://github.com/CrawlScript/pipclaw](https://github.com/CrawlScript/pipclaw)
+**主页:** [https://github.com/CrawlScript/MMClaw](https://github.com/CrawlScript/MMClaw)
 
 [English](README.md) | **中文说明**
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-PipClaw 是一个极简主义的、100% 纯 Python 编写的自主代理内核。虽然像 OpenClaw 这样的框架功能强大，但它们通常会引入沉重的依赖，如 Node.js、Docker 或复杂的 C 扩展。
+> **说明：** 本项目在 v0.0.11 之前名为 [pipclaw](https://github.com/CrawlScript/pipclaw)。
 
-PipClaw 剥离了复杂性，提供了一个清晰透明、易读的架构，既可以作为生产级的内核，也可以作为构建现代 AI Agent 的全面教程。
+MMClaw 是一个极简主义的、100% 纯 Python 编写的自主代理内核。虽然像 OpenClaw 这样的框架功能强大，但它们通常会引入沉重的依赖，如 Node.js、Docker 或复杂的 C 扩展。
+
+MMClaw 剥离了复杂性，提供了一个清晰透明、易读的架构，既可以作为生产级的内核，也可以作为构建现代 AI Agent 的全面教程。
 
 ---
 
 ## 🌟 核心特性
 
-* **100% 纯 Python**: 无 C 扩展，无 Node.js，无 Docker。只要有 Python，就能运行 PipClaw。
+* **100% 纯 Python**: 无 C 扩展，无 Node.js，无 Docker。只要有 Python，就能运行 MMClaw。
 * **极简且易读**: “自带电池”的架构，旨在成为一个活生生的教程。通过阅读代码而非文档来学习如何构建 OpenClaw 风格的 Agent。
 * **高度可定制的内核**: 设计为一个核心引擎，而非一个僵化的应用。可以轻松插入您自己的逻辑、状态管理和自定义工具。
 * **通用的跨平台支持**: 在 Windows、macOS、Linux 以及像树莓派这样的极简环境中无缝运行。
@@ -27,17 +29,17 @@ PipClaw 剥离了复杂性，提供了一个清晰透明、易读的架构，既
 无需编译，无需沉重的设置。只需 pip 安装并运行。
 
 ```bash
-pip install pipclaw
-pipclaw run
+pip install mmclaw
+mmclaw run
 ```
 
 ## 🛠 开发理念
 
-AI Agent 的趋势正朝着大规模复杂化发展。PipClaw 则趋向于清晰。大多数开发者不需要一个 40 万行代码的黑盒。他们需要一个可靠、可审计的内核来处理 Agent 循环和工具调用，同时保持足够轻量，以便在几分钟内完成修改。PipClaw 是自主机器人的“浓缩精华”。
+AI Agent 的趋势正朝着大规模复杂化发展。MMClaw 则趋向于清晰。大多数开发者不需要一个 40 万行代码的黑盒。他们需要一个可靠、可审计的内核来处理 Agent 循环和工具调用，同时保持足够轻量，以便在几分钟内完成修改。MMClaw 是自主机器人的“浓缩精华”。
 
 ## 🔌 连接器
 
-PipClaw 允许您通过多个渠道与您的 Agent 交互：
+MMClaw 允许您通过多个渠道与您的 Agent 交互：
 
 - **终端模式 (Terminal Mode)**: 标准交互式 CLI（默认）。
 - **Telegram 模式**: 无外部依赖。只需通过 [@BotFather](https://t.me/botfather) 创建机器人并在设置过程中提供 Token 即可。
@@ -46,13 +48,13 @@ PipClaw 允许您通过多个渠道与您的 Agent 交互：
 
 ```bash
 # 修改模式或 LLM 设置
-pipclaw config
+mmclaw config
 ```
 
 ## 📂 项目结构
 
 ```text
-pipclaw/
+mmclaw/
 ├── kernel/          # 核心 Agent 循环与状态逻辑
 ├── connectors/      # Telegram、飞书、WhatsApp 和 Web UI 桥接
 ├── providers/       # LLM 连接器 (OpenAI, Anthropic 等)

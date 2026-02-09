@@ -1,26 +1,26 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="pipclaw",
-    version="0.0.10",
+    name="mmclaw",
+    version="0.0.11",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
 
-    description="🐈 PipClaw: Ultra-Lightweight, Pure Python Agent.",
+    description="🐈 MMClaw: Ultra-Lightweight, Pure Python Multimodal Agent.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/CrawlScript/pipclaw",
+    url="https://github.com/CrawlScript/MMClaw",
     
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        "pipclaw": ["skills/*.md", "bridge.js"],
+        "mmclaw": ["skills/*.md", "bridge.js"],
     },
     
     entry_points={
         "console_scripts": [
-            "pipclaw=pipclaw.main:main",
+            "mmclaw=mmclaw.main:main",
         ],
     },
     

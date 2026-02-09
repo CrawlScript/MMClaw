@@ -16,7 +16,7 @@ except ImportError:
 
 class TerminalConnector(object):
     def listen(self, callback):
-        print("\n--- PipClaw Kernel Active (Terminal Mode) ---")
+        print("\n--- MMClaw Kernel Active (Terminal Mode) ---")
         while True:
             try:
                 text = input("👤 You: ").strip()
@@ -25,11 +25,11 @@ class TerminalConnector(object):
             except KeyboardInterrupt: break
 
     def send(self, message):
-        print(f"\r🐈 PipClaw: {message}\n👤 You: ", end="", flush=True)
+        print(f"\r🐈 MMClaw: {message}\n👤 You: ", end="", flush=True)
 
     def send_file(self, path):
         full_path = os.path.expanduser(path)
-        print(f"\r🐈 PipClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
+        print(f"\r🐈 MMClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
 
 class FeishuConnector(object):
     def __init__(self, app_id, app_secret):
@@ -62,7 +62,7 @@ class FeishuConnector(object):
                     self.authorized_id = sender_id
                     self.config["feishu_authorized_id"] = sender_id
                     ConfigManager.save(self.config)
-                    print(f"\n[⭐] AUTH SUCCESS! PipClaw is now locked to Feishu User: {sender_id}")
+                    print(f"\n[⭐] AUTH SUCCESS! MMClaw is now locked to Feishu User: {sender_id}")
                     self.send("🐈 Verification Successful! I am now your personal agent.")
                     return
                 else:
@@ -80,7 +80,7 @@ class FeishuConnector(object):
 
     def listen(self, callback):
         self.callback = callback
-        print(f"\n--- PipClaw Kernel Active (Feishu Mode) ---")
+        print(f"\n--- MMClaw Kernel Active (Feishu Mode) ---")
         
         if not self.authorized_id:
             print(f"[🔐] 需要进行飞书身份验证")
@@ -168,7 +168,7 @@ class TelegramConnector(object):
         self.telegram_authorized_user_id = int(telegram_authorized_user_id)
         
     def listen(self, callback):
-        print(f"\n--- PipClaw Kernel Active (Telegram Mode) ---")
+        print(f"\n--- MMClaw Kernel Active (Telegram Mode) ---")
         print(f"[*] Listening for messages from User ID: {self.telegram_authorized_user_id}")
         
         @self.bot.message_handler(func=lambda message: message.from_user.id == self.telegram_authorized_user_id)
@@ -294,7 +294,7 @@ class WhatsAppConnector(object):
                                     self.authorized_id = sender
                                     self.config["whatsapp_authorized_id"] = sender
                                     ConfigManager.save(self.config)
-                                    print(f"\n[⭐] AUTH SUCCESS! PipClaw is now locked to: {sender}")
+                                    print(f"\n[⭐] AUTH SUCCESS! MMClaw is now locked to: {sender}")
                                     self.send("🐈 Verification Successful! I am now your personal agent.")
                                     continue
                                 else:

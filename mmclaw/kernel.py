@@ -20,7 +20,7 @@ class Memory(object):
         """Clears the history except for the system prompt."""
         self.history = [{"role": "system", "content": self.system_prompt}]
 
-class PipClaw(object):
+class MMClaw(object):
     def __init__(self, config, connector, system_prompt):
         self.engine = Engine(config)
         self.connector = connector

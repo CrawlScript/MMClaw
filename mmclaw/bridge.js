@@ -15,7 +15,7 @@ let isReconnecting = false;
 async function startBot() {
     if (isReconnecting) return;
     
-    const sessionDir = path.join(os.homedir(), ".pipclaw", "wa_auth");
+    const sessionDir = path.join(os.homedir(), ".mmclaw", "wa_auth");
     if (!fs.existsSync(path.dirname(sessionDir))) {
         fs.mkdirSync(path.dirname(sessionDir), { recursive: true });
     }
