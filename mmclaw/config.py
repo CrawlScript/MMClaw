@@ -64,17 +64,49 @@ class ConfigManager(object):
     )
 
     DEFAULT_CONFIG = {
-        "engine_type": "deepseek",
-        "model": "deepseek-chat",
-        "api_key": "sk-your-key-here",
-        "base_url": "https://api.deepseek.com",
-        "telegram_token": "your-bot-token-here",
-        "telegram_authorized_user_id": 0,
-        "whatsapp_authorized_id": None,
-        "feishu_app_id": "cli_xxx",
-        "feishu_app_secret": "xxx",
-        "feishu_authorized_id": None,
-        "preferred_mode": "terminal"
+        "engine_type": "openai",
+        "engines": {
+            "openai": {
+                "model": "gpt-4o",
+                "api_key": "sk-your-key-here",
+                "base_url": "https://api.openai.com/v1"
+            },
+            "deepseek": {
+                "model": "deepseek-chat",
+                "api_key": "sk-your-key-here",
+                "base_url": "https://api.deepseek.com"
+            },
+            "openrouter": {
+                "model": "anthropic/claude-3.5-sonnet",
+                "api_key": "sk-your-key-here",
+                "base_url": "https://openrouter.ai/api/v1"
+            },
+            "openai_compatible": {
+                "model": "llama3",
+                "api_key": "sk-your-key-here",
+                "base_url": "http://localhost:11434/v1"
+            },
+            "google": {
+                "model": "gemini-1.5-pro",
+                "api_key": "your-key-here",
+                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"
+            }
+        },
+        "preferred_mode": "terminal",
+        "connectors": {
+            "telegram": {
+                "token": "",
+                "authorized_user_id": 0
+            },
+            "whatsapp": {
+                "authorized_id": None
+            },
+            "feishu": {
+                "app_id": "",
+                "app_secret": "",
+                "authorized_id": None
+            }
+        }
     }
     CONFIG_DIR = Path.home() / ".mmclaw"
     CONFIG_FILE = CONFIG_DIR / "mmclaw.json"
@@ -83,7 +115,83 @@ class ConfigManager(object):
     def load(cls):
         if not cls.CONFIG_DIR.exists():
             cls.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        return json.load(open(cls.CONFIG_FILE, "r", encoding="utf-8")) if cls.CONFIG_FILE.exists() else None
+        
+        if not cls.CONFIG_FILE.exists():
+            return None
+            
+        try:
+            config = json.load(open(cls.CONFIG_FILE, "r", encoding="utf-8"))
+            needs_save = False
+
+            # Migration: Engines
+            if "engines" not in config:
+                print("[*] Migrating legacy engine configuration...")
+                new_engines = {}
+                legacy_map = {1: "openai", 2: "deepseek", 3: "openrouter", 4: "openai_compatible"}
+                
+                e_type = config.get("engine_type", "openai")
+                if isinstance(e_type, int):
+                    e_type = legacy_map.get(e_type, "openai")
+                
+                active_engine_config = {
+                    "model": config.get("model", cls.DEFAULT_CONFIG["engines"]["openai"]["model"]),
+                    "api_key": config.get("api_key", "sk-xxx"),
+                    "base_url": config.get("base_url", "https://api.openai.com/v1")
+                }
+                
+                for k, v in cls.DEFAULT_CONFIG["engines"].items():
+                    new_engines[k] = v.copy()
+                new_engines[e_type] = active_engine_config
+                
+                config["engines"] = new_engines
+                config["engine_type"] = e_type
+                
+                for key in ["model", "api_key", "base_url"]:
+                    if key in config: del config[key]
+                needs_save = True
+
+            # Migration: Fix Google Base URL (add /openai if missing)
+            if "engines" in config and "google" in config["engines"]:
+                g_config = config["engines"]["google"]
+                if g_config.get("base_url") == "https://generativelanguage.googleapis.com/v1beta":
+                    print("[*] Updating Google Gemini base_url to OpenAI-compatible endpoint...")
+                    g_config["base_url"] = "https://generativelanguage.googleapis.com/v1beta/openai"
+                    needs_save = True
+
+            # Migration: Connectors
+            if "connectors" not in config:
+                print("[*] Migrating legacy connector configuration...")
+                config["connectors"] = {
+                    "telegram": {
+                        "token": config.get("telegram_token", ""),
+                        "authorized_user_id": config.get("telegram_authorized_user_id", 0)
+                    },
+                    "whatsapp": {
+                        "authorized_id": config.get("whatsapp_authorized_id")
+                    },
+                    "feishu": {
+                        "app_id": config.get("feishu_app_id", ""),
+                        "app_secret": config.get("feishu_app_secret", ""),
+                        "authorized_id": config.get("feishu_authorized_id")
+                    }
+                }
+                # Clean up legacy flat keys
+                legacy_keys = [
+                    "telegram_token", "telegram_authorized_user_id",
+                    "whatsapp_authorized_id",
+                    "feishu_app_id", "feishu_app_secret", "feishu_authorized_id"
+                ]
+                for key in legacy_keys:
+                    if key in config: del config[key]
+                needs_save = True
+
+            if needs_save:
+                cls.save(config)
+                
+            return config
+        except Exception as e:
+            print(f"[!] Error loading config: {e}")
+            return None
 
     @classmethod
     def save(cls, config):

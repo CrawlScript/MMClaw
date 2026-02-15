@@ -8,46 +8,7 @@ import random
 import base64
 import io
 from .config import ConfigManager
-
-try:
-    from PIL import Image as PILImage
-except ImportError:
-    PILImage = None
-
-try:
-    import lark_oapi as lark
-    from lark_oapi.api.im.v1 import (
-        ReplyMessageRequest, ReplyMessageRequestBody, ReplyMessageResponse,
-        CreateFileRequest, CreateFileRequestBody, CreateFileResponse,
-        P2ImMessageReceiveV1, GetMessageResourceRequest
-    )
-except ImportError:
-    lark = None
-
-def _compress_image(image_bytes):
-    """Resizes and compresses image to reduce API costs."""
-    if PILImage is None:
-        return image_bytes
-    
-    try:
-        img = PILImage.open(io.BytesIO(image_bytes))
-        # Convert RGBA to RGB if necessary
-        if img.mode in ("RGBA", "P"):
-            img = img.convert("RGB")
-        
-        # Max dimension 1024px while maintaining aspect ratio
-        max_size = 1024
-        if max(img.size) > max_size:
-            ratio = max_size / float(max(img.size))
-            new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
-            img = img.resize(new_size, PILImage.LANCZOS)
-        
-        output = io.BytesIO()
-        img.save(output, format="JPEG", quality=80, optimize=True)
-        return output.getvalue()
-    except Exception as e:
-        print(f"[!] Compression Error: {e}")
-        return image_bytes
+from .providers import prepare_image_content
 
 class TerminalConnector(object):
     def listen(self, callback):
@@ -67,23 +28,33 @@ class TerminalConnector(object):
         print(f"\r🐈 MMClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
 
 class FeishuConnector(object):
-    def __init__(self, app_id, app_secret):
-        if lark is None:
+    def __init__(self, app_id, app_secret, config=None):
+        try:
+            import lark_oapi as lark
+        except ImportError:
             raise ImportError("lark-oapi is required for Feishu mode. Install it with: pip install lark-oapi")
+            
+        self.lark = lark
         self.app_id = app_id
         self.app_secret = app_secret
         self.callback = None
         self.last_message_id = None
-        self.config = ConfigManager.load()
-        self.authorized_id = self.config.get("feishu_authorized_id")
+        self.config = config if config else ConfigManager.load()
+        # Nested connector config
+        self.fs_config = self.config.get("connectors", {}).get("feishu", {})
+        self.authorized_id = self.fs_config.get("authorized_id")
+        
         self.verify_code = str(random.randint(100000, 999999))
         self.client = lark.Client.builder() \
             .app_id(app_id) \
             .app_secret(app_secret) \
             .log_level(lark.LogLevel.INFO) \
             .build()
+        self.ws_client = None
+        self.stop_on_auth = False
 
-    def _handle_message(self, data: P2ImMessageReceiveV1) -> None:
+    def _handle_message(self, data) -> None:
+        from lark_oapi.api.im.v1 import GetMessageResourceRequest
         try:
             sender_id = data.event.sender.sender_id.open_id
             msg_type = data.event.message.message_type
@@ -96,10 +67,20 @@ class FeishuConnector(object):
                 text = msg_dict.get("text", "").strip()
                 if text == self.verify_code:
                     self.authorized_id = sender_id
-                    self.config["feishu_authorized_id"] = sender_id
+                    # Save to nested config
+                    if "connectors" not in self.config: self.config["connectors"] = {}
+                    if "feishu" not in self.config["connectors"]: self.config["connectors"]["feishu"] = {}
+                    self.config["connectors"]["feishu"]["authorized_id"] = sender_id
+                    
                     ConfigManager.save(self.config)
                     print(f"\n[⭐] AUTH SUCCESS! MMClaw is now locked to Feishu User: {sender_id}")
                     self.send("🐈 Verification Successful! I am now your personal agent.")
+                    
+                    if self.stop_on_auth:
+                        # We can't easily stop the websocket client from a callback in lark-oapi
+                        # but we can try to force it by raising an exception or just exiting
+                        # if we are in the setup phase.
+                        os._exit(0) # Brutal but effective for a CLI wizard setup
                     return
                 else:
                     return
@@ -126,17 +107,7 @@ class FeishuConnector(object):
                         return
                     
                     downloaded_file = response.file.read()
-                    compressed_file = _compress_image(downloaded_file)
-                    base64_image = base64.b64encode(compressed_file).decode('utf-8')
-                    
-                    mime_type = "image/jpeg"
-                    content = [
-                        {"type": "text", "text": "What is in this image?"},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}
-                        }
-                    ]
+                    content = prepare_image_content(downloaded_file)
                     print(f"📩 Feishu: [Photo] (Compressed)")
                     if self.callback:
                         self.callback(content)
@@ -147,27 +118,32 @@ class FeishuConnector(object):
             print(f"[!] Feishu Parse Error: {e}")
         return None
 
-    def listen(self, callback):
+    def listen(self, callback, stop_on_auth=False):
         self.callback = callback
+        self.stop_on_auth = stop_on_auth
         print(f"\n--- MMClaw Kernel Active (Feishu Mode) ---")
         
         if not self.authorized_id:
             print(f"[🔐] 需要进行飞书身份验证")
             print(f"[*] 请将以下 6 位验证码发送给飞书机器人: {self.verify_code}")
+        elif stop_on_auth:
+            print(f"\n[✅] 飞书身份已验证: {self.authorized_id}")
+            return
 
-        event_handler = lark.EventDispatcherHandler.builder("", "") \
+        event_handler = self.lark.EventDispatcherHandler.builder("", "") \
             .register_p2_im_message_receive_v1(self._handle_message) \
             .build()
 
-        ws_client = lark.ws.Client(
+        self.ws_client = self.lark.ws.Client(
             app_id=self.app_id,
             app_secret=self.app_secret,
             event_handler=event_handler,
-            log_level=lark.LogLevel.INFO
+            log_level=self.lark.LogLevel.INFO
         )
-        ws_client.start()
+        self.ws_client.start()
 
     def send(self, message):
+        from lark_oapi.api.im.v1 import ReplyMessageRequest, ReplyMessageRequestBody
         if not self.last_message_id: 
             return
         
@@ -180,11 +156,12 @@ class FeishuConnector(object):
                 .build()) \
             .build()
             
-        response: ReplyMessageResponse = self.client.im.v1.message.reply(request)
+        response = self.client.im.v1.message.reply(request)
         if not response.success():
             print(f"[!] Feishu Reply Error: {response.code}, {response.msg}")
 
     def send_file(self, path):
+        from lark_oapi.api.im.v1 import CreateFileRequest, CreateFileRequestBody, ReplyMessageRequest, ReplyMessageRequestBody
         if not self.last_message_id: 
             return
         
@@ -205,7 +182,7 @@ class FeishuConnector(object):
                         .file(f) \
                         .build()) \
                     .build()
-                response: CreateFileResponse = self.client.im.v1.file.create(request)
+                response = self.client.im.v1.file.create(request)
                 
             if not response.success():
                 print(f"[!] Feishu Upload Error: {response.code}, {response.msg}")
@@ -224,7 +201,7 @@ class FeishuConnector(object):
                     .build()) \
                 .build()
                 
-            response: ReplyMessageResponse = self.client.im.v1.message.reply(request)
+            response = self.client.im.v1.message.reply(request)
             if not response.success():
                 print(f"[!] Feishu Send File Error: {response.code}, {response.msg}")
         except Exception as e:
@@ -251,19 +228,7 @@ class TelegramConnector(object):
                     file_info = self.bot.get_file(file_id)
                     downloaded_file = self.bot.download_file(file_info.file_path)
                     
-                    # Compress before encoding
-                    compressed_file = _compress_image(downloaded_file)
-                    base64_image = base64.b64encode(compressed_file).decode('utf-8')
-                    
-                    mime_type = "image/jpeg" # We force JPEG in compressor
-
-                    content = [
-                        {"type": "text", "text": text if text else "What is in this image?"},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}
-                        }
-                    ]
+                    content = prepare_image_content(downloaded_file, text if text else "What is in this image?")
                     print(f"📩 Telegram: [Photo] {text} (Compressed)")
                     callback(content)
                 except Exception as e:
@@ -296,12 +261,15 @@ class TelegramConnector(object):
             self.send(f"Error sending file: {str(e)}")
 
 class WhatsAppConnector(object):
-    def __init__(self):
+    def __init__(self, config=None):
         self.process = None
         self.callback = None
         self.active_recipient = None
-        self.config = ConfigManager.load()
-        self.authorized_id = self.config.get("whatsapp_authorized_id")
+        self.config = config if config else ConfigManager.load()
+        # Nested connector config
+        self.wa_config = self.config.get("connectors", {}).get("whatsapp", {})
+        self.authorized_id = self.wa_config.get("authorized_id")
+        
         self.verify_code = str(random.randint(100000, 999999))
         self.last_sent_text = None
         self.bridge_path = os.path.join(os.path.dirname(__file__), "bridge.js")
@@ -366,10 +334,15 @@ class WhatsAppConnector(object):
         
         self._deps_checked = True
 
-    def listen(self, callback):
+    def listen(self, callback, stop_on_auth=False):
         if not self._ensure_node(): return
         self._ensure_deps()
         self.callback = callback
+        self.stop_on_auth = stop_on_auth
+
+        if stop_on_auth and self.authorized_id:
+            print(f"\n[✅] WhatsApp identity already verified: {self.authorized_id}")
+            return
         
         env = self._get_node_env()
         self.process = subprocess.Popen(
@@ -391,10 +364,18 @@ class WhatsAppConnector(object):
                             if not self.authorized_id:
                                 if text == self.verify_code:
                                     self.authorized_id = sender
-                                    self.config["whatsapp_authorized_id"] = sender
+                                    # Save to nested config
+                                    if "connectors" not in self.config: self.config["connectors"] = {}
+                                    if "whatsapp" not in self.config["connectors"]: self.config["connectors"]["whatsapp"] = {}
+                                    self.config["connectors"]["whatsapp"]["authorized_id"] = sender
+                                    
                                     ConfigManager.save(self.config)
                                     print(f"\n[⭐] AUTH SUCCESS! MMClaw is now locked to: {sender}")
                                     self.send("🐈 Verification Successful! I am now your personal agent.")
+                                    
+                                    if stop_on_auth:
+                                        self.process.terminate()
+                                        return
                                     continue
                                 else:
                                     continue
@@ -426,17 +407,7 @@ class WhatsAppConnector(object):
                             try:
                                 # Decode base64 to bytes
                                 image_bytes = base64.b64decode(b64_data)
-                                # Compress
-                                compressed_file = _compress_image(image_bytes)
-                                final_base64 = base64.b64encode(compressed_file).decode('utf-8')
-                                
-                                content = [
-                                    {"type": "text", "text": caption if caption else "What is in this image?"},
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {"url": f"data:image/jpeg;base64,{final_base64}"}
-                                    }
-                                ]
+                                content = prepare_image_content(image_bytes, caption if caption else "What is in this image?")
                                 print(f"📩 WhatsApp: [Photo] {caption} (Compressed)")
                                 self.active_recipient = sender
                                 if self.callback:
@@ -446,10 +417,14 @@ class WhatsAppConnector(object):
 
                         elif event["type"] == "connected":
                             if not self.authorized_id:
-                                print(f"\n[🔐] WHATSAPP VERIFICATION REQUIRED")
+                                print(f"\n[✅] WhatsApp Bridge Connected!")
+                                print(f"[🔐] WHATSAPP VERIFICATION REQUIRED")
                                 print(f"[*] PLEASE SEND THIS CODE TO YOURSELF ON WHATSAPP: {self.verify_code}")
                             else:
                                 print(f"\n[✅] WhatsApp Active")
+                                if stop_on_auth:
+                                    self.process.terminate()
+                                    return
 
                     except Exception as e:
                         print(f"[!] Bridge Parse Error: {e}")
