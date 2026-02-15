@@ -52,6 +52,7 @@ class FeishuConnector(object):
             .build()
         self.ws_client = None
         self.stop_on_auth = False
+    
 
     def _handle_message(self, data) -> None:
         from lark_oapi.api.im.v1 import GetMessageResourceRequest
@@ -62,6 +63,7 @@ class FeishuConnector(object):
             
             # Always store last message_id for reply attempt
             self.last_message_id = data.event.message.message_id
+
 
             if not self.authorized_id:
                 text = msg_dict.get("text", "").strip()
@@ -77,9 +79,6 @@ class FeishuConnector(object):
                     self.send("🐈 Verification Successful! I am now your personal agent.")
                     
                     if self.stop_on_auth:
-                        # We can't easily stop the websocket client from a callback in lark-oapi
-                        # but we can try to force it by raising an exception or just exiting
-                        # if we are in the setup phase.
                         os._exit(0) # Brutal but effective for a CLI wizard setup
                     return
                 else:

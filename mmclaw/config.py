@@ -92,7 +92,7 @@ class ConfigManager(object):
                 "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"
             }
         },
-        "preferred_mode": "terminal",
+        "connector_type": "terminal",
         "connectors": {
             "telegram": {
                 "token": "",
@@ -122,6 +122,12 @@ class ConfigManager(object):
         try:
             config = json.load(open(cls.CONFIG_FILE, "r", encoding="utf-8"))
             needs_save = False
+
+            # Migration: preferred_mode -> connector_type
+            if "preferred_mode" in config:
+                print("[*] Migrating 'preferred_mode' to 'connector_type'...")
+                config["connector_type"] = config.pop("preferred_mode")
+                needs_save = True
 
             # Migration: Engines
             if "engines" not in config:

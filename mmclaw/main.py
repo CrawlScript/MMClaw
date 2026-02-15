@@ -7,6 +7,9 @@ from .kernel import MMClaw
 from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector
 
 def run_setup(existing_config=None):
+    
+    need_auth = False
+    
     print("\n--- 🐈 MMClaw Setup Wizard ---")
     config = existing_config.copy() if existing_config else ConfigManager.DEFAULT_CONFIG.copy()
     
@@ -143,7 +146,7 @@ def run_setup(existing_config=None):
     # 2. Mode Selection
     if not existing_config or input("\n[2/3] Configure Connector (Interaction Mode)? (y/N): ").strip().lower() == 'y':
         print("\n[2/3] Interaction Mode")
-        print(f"Current preferred mode: {config.get('preferred_mode', 'terminal')}")
+        print(f"Current preferred mode: {config.get('connector_type', 'terminal')}")
         print("1. Terminal Mode")
         print("2. Telegram Mode")
         print("3. WhatsApp Mode (Scan QR Code)")
@@ -152,7 +155,7 @@ def run_setup(existing_config=None):
         choice = input("Select mode (1, 2, 3, or 4) [Keep current]: ").strip()
 
         if choice == "4":
-            config["preferred_mode"] = "feishu"
+            config["connector_type"] = "feishu"
             print("\n--- 🛠 Feishu (飞书) Setup ---")
             
             print("[*] 第一步：请登录飞书开放平台 (https://open.feishu.cn/app) 并创建一个“企业自建应用”。")
@@ -183,25 +186,18 @@ def run_setup(existing_config=None):
                 if reset == 'y':
                     config["connectors"]["feishu"]["authorized_id"] = None
                     print("[✓] 身份已重置。")
-
-            if not config["connectors"]["feishu"].get("authorized_id"):
-                print("[*] 正在启动飞书身份验证...")
-                from .connectors import FeishuConnector
-                conn = FeishuConnector(config["connectors"]["feishu"]["app_id"], 
-                                       config["connectors"]["feishu"]["app_secret"], 
-                                       config=config)
-                conn.listen(lambda x: None, stop_on_auth=True)
+                    need_auth = True
             else:
-                print("[✓] 飞书身份已验证。")
+                need_auth = True
 
         elif choice == "2":
-            config["preferred_mode"] = "telegram"
+            config["connector_type"] = "telegram"
             print("\n--- 🛠 Telegram Setup ---")
             config["connectors"]["telegram"]["token"] = ask("Bot API Token", "token", "", nested_connector="telegram")
             user_id = ask("Your User ID", "authorized_user_id", "0", nested_connector="telegram")
             config["connectors"]["telegram"]["authorized_user_id"] = int(user_id) if str(user_id).isdigit() else 0
         elif choice == "3":
-            config["preferred_mode"] = "whatsapp"
+            config["connector_type"] = "whatsapp"
             print("\n--- 🛠 WhatsApp Setup ---")
             wa_auth_dir = os.path.join(os.path.expanduser("~"), ".mmclaw", "wa_auth")
             
@@ -211,23 +207,18 @@ def run_setup(existing_config=None):
                     shutil.rmtree(wa_auth_dir)
                     config["connectors"]["whatsapp"]["authorized_id"] = None
                     print("[✓] Session and identity cleared.")
+                    need_auth = True
             else:
                 # If session is gone, we must re-verify identity
                 config["connectors"]["whatsapp"]["authorized_id"] = None
+                need_auth = True
 
-            if not config["connectors"]["whatsapp"].get("authorized_id"):
-                print("[*] Starting WhatsApp connection...")
-                from .connectors import WhatsAppConnector
-                conn = WhatsAppConnector(config=config)
-                conn.listen(lambda x: None, stop_on_auth=True)
-            else:
-                print(f"[✓] WhatsApp identity already verified: {config['connectors']['whatsapp'].get('authorized_id')}")
         elif choice == "1":
-            config["preferred_mode"] = "terminal"
+            config["connector_type"] = "terminal"
 
     # 3. Save
     ConfigManager.save(config)
-    return config
+    return config, need_auth
 
 def main():
     import sys
@@ -244,21 +235,23 @@ def main():
     config = ConfigManager.load()
     
     if args.command == "config":
-        run_setup(config)
-        return
-    
+        config, need_auth = run_setup(config)
+
+        if not need_auth:
+            return
+
     # Empty command or 'run' both trigger the agent
-    if args.command not in [None, "run"]:
+    elif args.command not in [None, "run"]:
         parser.print_help()
         return
 
     if not config:
-        config = run_setup()
+        config, _ = run_setup()
 
     config["debug"] = args.debug  # Store debug state in config dict for easy passing
 
     # Mode Dispatch
-    mode = config.get("preferred_mode")
+    mode = config.get("connector_type")
     connectors_config = config.get("connectors", {})
     
     if mode == "telegram":
@@ -281,7 +274,11 @@ def main():
         return
     
     app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(mode=mode))
-    app.run()
+
+    if args.command == "config":
+        app.run(stop_on_auth=True)
+    else:
+        app.run()
 
 if __name__ == "__main__":
     main()

@@ -115,5 +115,8 @@ class MMClaw(object):
     def handle(self, text):
         self.task_queue.put(text)
 
-    def run(self):
-        self.connector.listen(self.handle)
+    def run(self, stop_on_auth=False):
+        try:
+            self.connector.listen(self.handle, stop_on_auth=stop_on_auth)
+        except TypeError:
+            self.connector.listen(self.handle)
