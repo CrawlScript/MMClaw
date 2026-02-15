@@ -5,14 +5,49 @@ import threading
 import telebot
 import shutil
 import random
-import json
+import base64
+import io
 from .config import ConfigManager
 
 try:
+    from PIL import Image as PILImage
+except ImportError:
+    PILImage = None
+
+try:
     import lark_oapi as lark
-    from lark_oapi.api.im.v1 import *
+    from lark_oapi.api.im.v1 import (
+        ReplyMessageRequest, ReplyMessageRequestBody, ReplyMessageResponse,
+        CreateFileRequest, CreateFileRequestBody, CreateFileResponse,
+        P2ImMessageReceiveV1, GetMessageResourceRequest
+    )
 except ImportError:
     lark = None
+
+def _compress_image(image_bytes):
+    """Resizes and compresses image to reduce API costs."""
+    if PILImage is None:
+        return image_bytes
+    
+    try:
+        img = PILImage.open(io.BytesIO(image_bytes))
+        # Convert RGBA to RGB if necessary
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        
+        # Max dimension 1024px while maintaining aspect ratio
+        max_size = 1024
+        if max(img.size) > max_size:
+            ratio = max_size / float(max(img.size))
+            new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+            img = img.resize(new_size, PILImage.LANCZOS)
+        
+        output = io.BytesIO()
+        img.save(output, format="JPEG", quality=80, optimize=True)
+        return output.getvalue()
+    except Exception as e:
+        print(f"[!] Compression Error: {e}")
+        return image_bytes
 
 class TerminalConnector(object):
     def listen(self, callback):
@@ -51,13 +86,14 @@ class FeishuConnector(object):
     def _handle_message(self, data: P2ImMessageReceiveV1) -> None:
         try:
             sender_id = data.event.sender.sender_id.open_id
+            msg_type = data.event.message.message_type
             msg_dict = json.loads(data.event.message.content)
-            text = msg_dict.get("text", "").strip()
             
             # Always store last message_id for reply attempt
             self.last_message_id = data.event.message.message_id
 
             if not self.authorized_id:
+                text = msg_dict.get("text", "").strip()
                 if text == self.verify_code:
                     self.authorized_id = sender_id
                     self.config["feishu_authorized_id"] = sender_id
@@ -71,9 +107,42 @@ class FeishuConnector(object):
             if sender_id != self.authorized_id:
                 return
             
-            if text and self.callback:
-                print(f"📩 Feishu: {text}")
-                self.callback(text)
+            if msg_type == "text":
+                text = msg_dict.get("text", "").strip()
+                if text and self.callback:
+                    print(f"📩 Feishu: {text}")
+                    self.callback(text)
+            elif msg_type == "image":
+                image_key = msg_dict.get("image_key")
+                try:
+                    request = GetMessageResourceRequest.builder() \
+                        .message_id(self.last_message_id) \
+                        .file_key(image_key) \
+                        .type("image") \
+                        .build()
+                    response = self.client.im.v1.message_resource.get(request)
+                    if not response.success():
+                        print(f"[!] Feishu Image Download Error: {response.code}, {response.msg}")
+                        return
+                    
+                    downloaded_file = response.file.read()
+                    compressed_file = _compress_image(downloaded_file)
+                    base64_image = base64.b64encode(compressed_file).decode('utf-8')
+                    
+                    mime_type = "image/jpeg"
+                    content = [
+                        {"type": "text", "text": "What is in this image?"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}
+                        }
+                    ]
+                    print(f"📩 Feishu: [Photo] (Compressed)")
+                    if self.callback:
+                        self.callback(content)
+                except Exception as e:
+                    print(f"[!] Feishu Photo Error: {e}")
+                    self.send(f"Error processing image: {e}")
         except Exception as e:
             print(f"[!] Feishu Parse Error: {e}")
         return None
@@ -166,17 +235,47 @@ class TelegramConnector(object):
     def __init__(self, token, telegram_authorized_user_id):
         self.bot = telebot.TeleBot(token)
         self.telegram_authorized_user_id = int(telegram_authorized_user_id)
-        
+
     def listen(self, callback):
         print(f"\n--- MMClaw Kernel Active (Telegram Mode) ---")
         print(f"[*] Listening for messages from User ID: {self.telegram_authorized_user_id}")
         
-        @self.bot.message_handler(func=lambda message: message.from_user.id == self.telegram_authorized_user_id)
+        @self.bot.message_handler(func=lambda message: message.from_user.id == self.telegram_authorized_user_id, 
+                                  content_types=['text', 'photo', 'document'])
         def handle_message(message):
-            print(f"📩 Telegram: {message.text}")
-            callback(message.text)
+            text = message.text or message.caption or ""
             
-        @self.bot.message_handler(func=lambda message: message.from_user.id != self.telegram_authorized_user_id)
+            if message.content_type == 'photo':
+                try:
+                    file_id = message.photo[-1].file_id
+                    file_info = self.bot.get_file(file_id)
+                    downloaded_file = self.bot.download_file(file_info.file_path)
+                    
+                    # Compress before encoding
+                    compressed_file = _compress_image(downloaded_file)
+                    base64_image = base64.b64encode(compressed_file).decode('utf-8')
+                    
+                    mime_type = "image/jpeg" # We force JPEG in compressor
+
+                    content = [
+                        {"type": "text", "text": text if text else "What is in this image?"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}
+                        }
+                    ]
+                    print(f"📩 Telegram: [Photo] {text} (Compressed)")
+                    callback(content)
+                except Exception as e:
+                    print(f"[!] Telegram Photo Error: {e}")
+                    self.send(f"Error processing image: {e}")
+            else:
+                if text:
+                    print(f"📩 Telegram: {text}")
+                    callback(text)
+            
+        @self.bot.message_handler(func=lambda message: message.from_user.id != self.telegram_authorized_user_id,
+                                  content_types=['text', 'photo', 'audio', 'video', 'document', 'sticker', 'voice'])
         def unauthorized(message):
             self.bot.reply_to(message, "🚫 Unauthorized. I only respond to my master.")
 
@@ -310,6 +409,40 @@ class WhatsAppConnector(object):
                             self.active_recipient = sender
                             if self.callback:
                                 self.callback(text)
+
+                        elif event["type"] == "image":
+                            sender = event["from"]
+                            b64_data = event["base64"]
+                            caption = event.get("caption", "").strip()
+                            from_me = event.get("fromMe", False)
+
+                            if not self.authorized_id or sender != self.authorized_id:
+                                continue
+
+                            # We allow from_me for images because the bot currently only sends 
+                            # documents (not imageMessages), so there is no risk of a loop.
+                            # This allows users to talk to the bot from the same account.
+
+                            try:
+                                # Decode base64 to bytes
+                                image_bytes = base64.b64decode(b64_data)
+                                # Compress
+                                compressed_file = _compress_image(image_bytes)
+                                final_base64 = base64.b64encode(compressed_file).decode('utf-8')
+                                
+                                content = [
+                                    {"type": "text", "text": caption if caption else "What is in this image?"},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:image/jpeg;base64,{final_base64}"}
+                                    }
+                                ]
+                                print(f"📩 WhatsApp: [Photo] {caption} (Compressed)")
+                                self.active_recipient = sender
+                                if self.callback:
+                                    self.callback(content)
+                            except Exception as e:
+                                print(f"[!] WhatsApp Image Error: {e}")
 
                         elif event["type"] == "connected":
                             if not self.authorized_id:

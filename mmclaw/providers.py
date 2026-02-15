@@ -37,5 +37,12 @@ class Engine(object):
                     print(f"\n[LLM Response]\n{json.dumps(msg, indent=2)}\n")
                 return msg
         except Exception as e:
+            print(f"[!] Engine Error: {e}")
+            if isinstance(e, urllib.error.HTTPError):
+                try:
+                    error_body = e.read().decode("utf-8")
+                    print(f"    Response Body: {error_body}")
+                except:
+                    pass
             # For a tutorial, we return a simple error message in message format
             return {"role": "assistant", "content": f"Engine Error: {e}"}
