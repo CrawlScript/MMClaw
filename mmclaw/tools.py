@@ -23,7 +23,8 @@ class FileTool(object):
     def read(path):
         """Reads a file and returns its content."""
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            full_path = os.path.expanduser(path)
+            with open(full_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
             return f"Error reading file: {str(e)}"
@@ -32,8 +33,9 @@ class FileTool(object):
     def write(path, content):
         """Writes content to a file."""
         try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
+            full_path = os.path.expanduser(path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             return f"Successfully wrote to {path}"
         except Exception as e:
