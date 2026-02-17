@@ -47,7 +47,9 @@ print(f"Config saved to {path}")
 
 ## Usage
 
-### Step 1 — Start tunnel in background, write URL to file
+### Step 1 — Start tunnel in background using `shell_async`
+
+Use the `shell_async` tool for this command to ensure it runs in the background without blocking. Do NOT append `&`.
 
 ```bash
 python -c "
@@ -57,7 +59,7 @@ url_path = os.path.expanduser('~/.mmclaw/skill-config/ngrok_url.txt')
 listener = ngrok.forward(<PORT>, authtoken=config['authtoken'])
 open(url_path, 'w').write(listener.url())
 threading.Event().wait()
-" &
+"
 ```
 
 ### Step 2 — Read and report the URL

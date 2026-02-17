@@ -3,7 +3,7 @@ import queue
 import json
 import re
 from .providers import Engine
-from .tools import ShellTool, FileTool, TimerTool, SessionTool
+from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool
 
 class Memory(object):
     def __init__(self, system_prompt):
@@ -86,6 +86,9 @@ class MMClaw(object):
                     if name == "shell_execute":
                         self.connector.send(f"🐚 Shell: `{args.get('command')}`")
                         result = ShellTool.execute(args.get("command"))
+                    elif name == "shell_async":
+                        self.connector.send(f"🚀 Async Shell: `{args.get('command')}`")
+                        result = AsyncShellTool.execute(args.get("command"))
                     elif name == "file_read":
                         self.connector.send(f"📖 Read: `{args.get('path')}`")
                         result = FileTool.read(args.get("path"))

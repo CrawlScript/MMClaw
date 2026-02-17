@@ -11,12 +11,30 @@ class ShellTool(object):
                 shell=True, 
                 capture_output=True, 
                 encoding='utf-8', 
-                timeout=30
+                # timeout=30
             )
             output = result.stdout if result.returncode == 0 else result.stderr
             return f"Return Code {result.returncode}:\n{output}"
         except Exception as e:
             return f"Error executing command: {str(e)}"
+
+class AsyncShellTool(object):
+    @staticmethod
+    def execute(command):
+        """Starts a long-running shell command in the background."""
+        try:
+            # Using Popen to start the process without waiting for it to finish.
+            # Redirect stdout/stderr to DEVNULL to avoid cluttering.
+            # No start_new_session so the process stays in the same process group.
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            return f"Started background process (PID: {process.pid}) for command: {command}"
+        except Exception as e:
+            return f"Error starting background command: {str(e)}"
 
 class FileTool(object):
     @staticmethod

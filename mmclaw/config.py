@@ -55,12 +55,17 @@ class ConfigManager(object):
         "  \"content\": \"message to user\"\n"
         "}\n\n"
         "Available Tools:\n"
-        "- shell_execute(command)\n"
+        "- shell_execute(command): Executes a command and returns the output. Use this for tasks that finish quickly.\n"
+        "- shell_async(command): Starts a long-running command (like a server or listener) in the background. Does not return output. "
+        "IMPORTANT: Do NOT append ' &' to the command; the tool handles backgrounding automatically.\n"
         "- file_read(path)\n"
         "- file_write(path, content)\n"
         "- file_upload(path)\n"
         "- wait(seconds)\n"
-        "- reset_session() Use this when the user asks for a 'new session', 'fresh start', or to 'clear history'."
+        "- reset_session() Use this when the user asks for a 'new session', 'fresh start', or to 'clear history'.\n\n"
+        "IMPORTANT: For long-running or blocking commands (e.g. starting a server, running ngrok, or any process "
+        "that does not exit on its own), you MUST use 'shell_async'. "
+        "Using 'shell_execute' for these will cause the agent to hang."
     )
 
     DEFAULT_CONFIG = {
