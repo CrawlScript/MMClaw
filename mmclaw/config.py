@@ -16,8 +16,8 @@ class SkillManager(object):
         if cls.PKG_SKILLS_DIR.exists():
             for skill_file in cls.PKG_SKILLS_DIR.glob("*.md"):
                 dest = cls.HOME_SKILLS_DIR / skill_file.name
-                if not dest.exists():
-                    shutil.copy(skill_file, dest)
+                # if not dest.exists():
+                shutil.copy(skill_file, dest)
 
     @classmethod
     def get_skills_prompt(cls):
