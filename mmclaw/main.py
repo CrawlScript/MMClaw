@@ -213,22 +213,80 @@ def run_setup(existing_config=None):
     # 2. Mode Selection
     if not existing_config or input("\n[2/3] Configure Connector (Interaction Mode)? (y/N): ").strip().lower() == 'y':
         print("\n[2/3] Interaction Mode")
-        print("1. Terminal Mode\n2. Telegram Mode\n3. WhatsApp Mode\n4. Feishu (飞书) Mode")
-        choice = input(f"Select mode [Current: {config.get('connector_type', 'terminal')}]: ").strip()
+        print(f"Current preferred mode: {config.get('connector_type', 'terminal')}")
+        print("1. Terminal Mode")
+        print("2. Telegram Mode")
+        print("3. WhatsApp Mode (Scan QR Code)")
+        print("4. Feishu (飞书) Mode")
+        choice = input("Select mode (1, 2, 3, or 4) [Keep current]: ").strip()
 
         if choice == "4":
             config["connector_type"] = "feishu"
+            print("\n--- 🛠 Feishu (飞书) Setup ---")
+
+            print('[*] 第一步：请登录飞书开放平台 (https://open.feishu.cn/app) 并创建一个"企业自建应用"。')
+            input("    完成后请按回车键 continue...")
+            print('[*] 第二步：在"添加应用能力"中，点击机器人下方的"添加"按钮。')
+            input("    完成后请按回车键 continue...")
+
+            print("[*] 第三步：获取并输入以下信息：")
             config["connectors"]["feishu"]["app_id"] = ask("App ID", "app_id", None, nested_connector="feishu")
             config["connectors"]["feishu"]["app_secret"] = ask("App Secret", "app_secret", None, nested_connector="feishu")
-            if not config["connectors"]["feishu"].get("authorized_id"): need_auth = True
+
+            print('[*] 第四步：左侧菜单栏选择"权限管理"，点击"批量导入/导出权限"，复制并粘贴以下 JSON：')
+            print("\n{\n  \"scopes\": {\n    \"tenant\": [\n      \"contact:user.base:readonly\",\n      \"im:chat\",\n      \"im:chat:read\",\n      \"im:chat:update\",\n      \"im:message\",\n      \"im:message.group_at_msg:readonly\",\n      \"im:message.p2p_msg:readonly\",\n      \"im:message:send_as_bot\",\n      \"im:resource\"\n    ],\n    \"user\": []\n  }\n}\n")
+            print('    点击"下一步，确认新增权限"，然后点击"申请开通"，最后点击"确认"。')
+            input("    完成后请按回车键 continue...")
+            print('\n[*] 第五步：在飞书平台左侧菜单选择"事件与回调"。')
+            print('    为了能够开启"长连接"，请在另一个终端运行以下命令（已自动填充您的 ID 和 Secret）：')
+            print(f"\n    python -c \"import lark_oapi as lark; h=lark.EventDispatcherHandler.builder('','').build(); c=lark.ws.Client(app_id='{config['connectors']['feishu']['app_id']}', app_secret='{config['connectors']['feishu']['app_secret']}', event_handler=h); c.start()\"\n")
+            print('    运行后，返回网页，左侧菜单栏选择"事件与回调"，在"事件配置-订阅方式"中选择"使用长连接接收事件"，然后点击"保存"。')
+            input("    完成后（且已关闭上述临时终端）请按回车键 continue...")
+            print('[*] 第六步：在"事件与回调"页面，点击"添加事件"，搜索并添加"接收消息 (im.message.receive_v1)"。')
+            input("    完成后请按回车键 continue...")
+            print('[*] 第七步：左侧菜单选择"版本管理与发布"，点击"创建版本"，输入相关信息，保存后确认发布。')
+            input("    完成后请按回车键 continue...")
+
+            if config["connectors"]["feishu"].get("authorized_id"):
+                reset = input(f"\n[*] 身份已绑定 ({config['connectors']['feishu']['authorized_id']})。是否重置并进行新的 6 位验证码验证？ (y/N): ").strip().lower()
+                if reset == 'y':
+                    config["connectors"]["feishu"]["authorized_id"] = None
+                    print("[✓] 身份已重置。")
+                    need_auth = True
+            else:
+                need_auth = True
         elif choice == "2":
             config["connector_type"] = "telegram"
-            config["connectors"]["telegram"]["token"] = ask("Bot API Token", "token", None, nested_connector="telegram")
-            user_id = ask("Your User ID", "authorized_user_id", "0", nested_connector="telegram")
+            print("\n--- 🛠 Telegram Setup ---")
+
+            print("[*] Step 1: Create your bot via BotFather.")
+            print("    - Open Telegram and search for @BotFather (official, blue checkmark).")
+            print("    - Send /newbot and follow the prompts to choose a name and username.")
+            print("    - BotFather will give you an API token like:  123456789:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+            config["connectors"]["telegram"]["token"] = ask("    Enter Bot API Token", "token", None, nested_connector="telegram")
+
+            print("\n[*] Step 2: Find your numeric User ID.")
+            print("    - Search for @userinfobot on Telegram and send it any message.")
+            print("    - It will reply with your ID, e.g.:  Id: 123456789")
+            print("    - This is used to restrict the bot so only you can send it commands.")
+            user_id = ask("    Enter your User ID", "authorized_user_id", "0", nested_connector="telegram")
             config["connectors"]["telegram"]["authorized_user_id"] = int(user_id) if str(user_id).isdigit() else 0
+
+            print("\n[✓] Telegram configured. Start the agent and send your bot a message to begin.")
         elif choice == "3":
             config["connector_type"] = "whatsapp"
-            if not os.path.exists(os.path.join(os.path.expanduser("~"), ".mmclaw", "wa_auth")):
+            print("\n--- 🛠 WhatsApp Setup ---")
+            wa_auth_dir = os.path.join(os.path.expanduser("~"), ".mmclaw", "wa_auth")
+
+            if os.path.exists(wa_auth_dir):
+                if input("[*] Found existing WhatsApp session. Use this session? (Y/n): ").strip().lower() == 'n':
+                    import shutil
+                    shutil.rmtree(wa_auth_dir)
+                    config["connectors"]["whatsapp"]["authorized_id"] = None
+                    print("[✓] Session and identity cleared.")
+                    need_auth = True
+            else:
+                config["connectors"]["whatsapp"]["authorized_id"] = None
                 need_auth = True
         elif choice == "1":
             config["connector_type"] = "terminal"
