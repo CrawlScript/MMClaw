@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 from pathlib import Path
+import platform
 
 class SkillManager(object):
     HOME_SKILLS_DIR = Path.home() / ".mmclaw" / "skills"
@@ -248,4 +249,12 @@ class ConfigManager(object):
                 "for lists (e.g., - or *) and tables. Avoid complex markdown that doesn't render in a shell.\n"
             )
 
-        return cls.BASE_SYSTEM_PROMPT + interface_context + SkillManager.get_skills_prompt()
+        os_context = (
+            f"\n\n[SYSTEM ENVIRONMENT]\n"
+            f"Operating System: {platform.platform()}\n"
+            "IMPORTANT: When generating shell commands, always use syntax compatible with the above OS.\n"
+        )
+
+        # print("================\n" + os_context)
+
+        return cls.BASE_SYSTEM_PROMPT + os_context + interface_context + SkillManager.get_skills_prompt()
