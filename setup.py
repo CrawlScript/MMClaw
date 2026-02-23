@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.29",
+    version="0.0.30",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
@@ -15,7 +15,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        "mmclaw": ["skills/*.md", "bridge.js"],
+        "mmclaw": ["skills/**/*", "bridge.js"],
     },
     
     entry_points={

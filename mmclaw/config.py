@@ -10,40 +10,68 @@ class SkillManager(object):
 
     @classmethod
     def sync_skills(cls):
-        """Copy skills from package to ~/.mmclaw/skills if not exists."""
+        """Copy skill directories from package to ~/.mmclaw/skills."""
         if not cls.HOME_SKILLS_DIR.exists():
             cls.HOME_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
-        
+
         if cls.PKG_SKILLS_DIR.exists():
-            for skill_file in cls.PKG_SKILLS_DIR.glob("*.md"):
-                dest = cls.HOME_SKILLS_DIR / skill_file.name
-                # if not dest.exists():
-                shutil.copy(skill_file, dest)
+            for skill_dir in cls.PKG_SKILLS_DIR.iterdir():
+                if not skill_dir.is_dir():
+                    continue
+                dest = cls.HOME_SKILLS_DIR / skill_dir.name
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(skill_dir, dest)
+
+    @classmethod
+    def _parse_frontmatter(cls, text):
+        """Return (meta_dict, body) parsed from YAML-style frontmatter."""
+        if not text.startswith("---"):
+            return {}, text
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            return {}, text
+        meta = {}
+        for line in parts[1].splitlines():
+            if ":" in line:
+                key, _, val = line.partition(":")
+                meta[key.strip()] = val.strip()
+        return meta, parts[2].strip()
 
     @classmethod
     def get_skills_prompt(cls):
-        """Read all skills and format them for the system prompt."""
+        """Build a lightweight skills index for the system prompt.
+
+        Only name, description, and path are included so the agent can call
+        file_read(<path>) to load full skill details on demand.
+        """
         if not cls.HOME_SKILLS_DIR.exists():
             return ""
-        
-        skills_text = (
-            "\n\n[SKILLS SECTION]\n"
-            "The following are specialized skills available to you. These are for your reference only. "
-            "Do NOT execute a skill simply because it is present in the prompt. "
-            "You should ONLY trigger a skill's execution if it is necessary to address the user's request.\n\n"
-            "Available Skills:\n"
-        )
-        for skill_file in cls.HOME_SKILLS_DIR.glob("*.md"):
+
+        entries = []
+        for skill_dir in sorted(cls.HOME_SKILLS_DIR.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_file = skill_dir / "skill.md"
+            if not skill_file.exists():
+                continue
             try:
-                content = skill_file.read_text(encoding="utf-8")
-                # We strip the frontmatter for the prompt to save tokens
-                if content.startswith("---"):
-                    parts = content.split("---", 2)
-                    if len(parts) >= 3:
-                        content = parts[2].strip()
-                skills_text += f"\n--- Skill: {skill_file.stem} ---\n{content}\n"
+                meta, _ = cls._parse_frontmatter(skill_file.read_text(encoding="utf-8"))
             except Exception:
                 continue
+            name = meta.get("name", skill_dir.name)
+            description = meta.get("description", "")
+            entries.append(f"- name: {name}\n  description: {description}\n  path: {skill_file}")
+
+        if not entries:
+            return ""
+
+        skills_text = (
+            "\n\n[SKILLS SECTION]\n"
+            "The following skills are available. Do NOT execute a skill unless the user's request requires it.\n"
+            "To get full instructions for a skill, call file_read(<path>) before using it.\n\n"
+            "Available Skills:\n"
+        ) + "\n".join(entries) + "\n"
         return skills_text
 
 class ConfigManager(object):
