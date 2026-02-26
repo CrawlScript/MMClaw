@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.30",
+    version="0.0.31",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
@@ -28,9 +28,13 @@ setup(
         "requests",
         "openai",
         "pyTelegramBotAPI",
-        "lark-oapi >= 1.5.3",
         "Pillow",
     ],
+    extras_require={
+        "all": [
+            "lark-oapi >= 1.5.3",
+        ],
+    },
     
     python_requires=">=3.8",
 )

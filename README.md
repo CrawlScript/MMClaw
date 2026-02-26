@@ -35,6 +35,12 @@ pip install mmclaw
 mmclaw run
 ```
 
+If you plan to use **Feishu (飞书)** as your connector, install with the `[all]` option to include the required `lark-oapi` dependency:
+
+```bash
+pip install mmclaw[all]
+```
+
 ## 🛠 The Philosophy
 
 The trend in AI agents is moving towards massive complexity. MMClaw moves towards clarity. Most developers don't need a 400,000-line black box. They need a reliable, auditable kernel that handles the agent loop and tool-calling while remaining light enough to be modified in minutes. MMClaw is the "distilled essence" of an autonomous bot.

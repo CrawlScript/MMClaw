@@ -33,6 +33,12 @@ pip install mmclaw
 mmclaw run
 ```
 
+如需使用**飞书 (Feishu)** 连接器，请使用 `[all]` 选项安装，以包含所需的 `lark-oapi` 依赖：
+
+```bash
+pip install mmclaw[all]
+```
+
 ## 🛠 开发理念
 
 AI Agent 的趋势正朝着大规模复杂化发展。MMClaw 则趋向于清晰。大多数开发者不需要一个 40 万行代码的黑盒。他们需要一个可靠、可审计的内核来处理 Agent 循环和工具调用，同时保持足够轻量，以便在几分钟内完成修改。MMClaw 是自主机器人的“浓缩精华”。
