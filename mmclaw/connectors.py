@@ -151,19 +151,22 @@ class FeishuConnector(object):
         from lark_oapi.api.im.v1 import ReplyMessageRequest, ReplyMessageRequestBody
         if not self.last_message_id:
             return
-        
-        reply_body = json.dumps({"text": message})
-        request = ReplyMessageRequest.builder() \
-            .message_id(self.last_message_id) \
-            .request_body(ReplyMessageRequestBody.builder() \
-                .content(reply_body) \
-                .msg_type("text") \
-                .build()) \
-            .build()
-            
-        response = self.client.im.v1.message.reply(request)
-        if not response.success():
-            print(f"[!] Feishu Reply Error: {response.code}, {response.msg}")
+
+        limit = 4000
+        chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
+        for chunk in chunks:
+            reply_body = json.dumps({"text": chunk})
+            request = ReplyMessageRequest.builder() \
+                .message_id(self.last_message_id) \
+                .request_body(ReplyMessageRequestBody.builder() \
+                    .content(reply_body) \
+                    .msg_type("text") \
+                    .build()) \
+                .build()
+            response = self.client.im.v1.message.reply(request)
+            if not response.success():
+                print(f"[!] Feishu Reply Error: {response.code}, {response.msg}")
+                break
 
     def send_file(self, path):
         from lark_oapi.api.im.v1 import CreateFileRequest, CreateFileRequestBody, ReplyMessageRequest, ReplyMessageRequestBody
@@ -269,10 +272,14 @@ class TelegramConnector(object):
         self.bot.infinity_polling()
 
     def send(self, message):
-        try:
-            self.bot.send_message(self.telegram_authorized_user_id, f"🐈 {message}")
-        except Exception as e:
-            print(f"[!] Telegram Send Error: {e}")
+        limit = 4000
+        chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
+        for chunk in chunks:
+            try:
+                self.bot.send_message(self.telegram_authorized_user_id, f"🐈 {chunk}")
+            except Exception as e:
+                print(f"[!] Telegram Send Error: {e}")
+                break
 
     def send_file(self, path):
         path = os.path.expanduser(path)
@@ -482,10 +489,13 @@ class WhatsAppConnector(object):
     def send(self, message):
         if not self.process or not (self.active_recipient or self.authorized_id): return
         recipient = self.active_recipient or self.authorized_id
-        self.last_sent_text = message
-        payload = {"to": recipient, "text": message}
-        self.process.stdin.write(f"SEND:{json.dumps(payload)}\n")
-        self.process.stdin.flush()
+        limit = 4000
+        chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
+        for chunk in chunks:
+            self.last_sent_text = chunk
+            payload = {"to": recipient, "text": chunk}
+            self.process.stdin.write(f"SEND:{json.dumps(payload)}\n")
+            self.process.stdin.flush()
 
     def send_file(self, path):
         if not self.process or not (self.active_recipient or self.authorized_id): return
