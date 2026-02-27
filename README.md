@@ -1,8 +1,3 @@
-<p align="center">
-<img src="MMClaw_LOGO.jpg" width="200"/>
-</p>
-
-
 # 🐈 MMClaw
 
 The Ultra-Lightweight, Pure Python Kernel for Multimodal AI Agents.
@@ -17,6 +12,11 @@ pip install mmclaw
 
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+<p align="center">
+<img src="MMClaw_LOGO.jpg" width="400"/>
+</p>
+
 
 > **Note:** This project was previously named [pipclaw](https://github.com/CrawlScript/pipclaw) (pre-v0.0.11).
 
