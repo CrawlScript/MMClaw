@@ -185,10 +185,11 @@ async function startBot() {
     });
 }
 
-process.stdin.on("data", async (data) => {
+const readline = require("readline");
+readline.createInterface({ input: process.stdin }).on("line", async (line) => {
     if (!sock) return;
+    line = line.trim();
     try {
-        const line = data.toString().trim();
         if (line.startsWith("TYPING:")) {
             const payload = JSON.parse(line.substring(7));
             await sock.sendPresenceUpdate(payload.action, payload.to);
@@ -202,7 +203,7 @@ process.stdin.on("data", async (data) => {
             if (fs.existsSync(filePath)) {
                 const fileName = path.basename(filePath);
                 const ext = path.extname(filePath).toLowerCase();
-                
+
                 const mimeMap = {
                     '.csv': 'text/csv',
                     '.txt': 'text/plain',
@@ -213,12 +214,11 @@ process.stdin.on("data", async (data) => {
                     '.mp4': 'video/mp4',
                     '.zip': 'application/zip'
                 };
-                
-                const mimetype = mimeMap[ext] || 'application/octet-stream';
 
+                const mimetype = mimeMap[ext] || 'application/octet-stream';
                 try {
-                    await sock.sendMessage(payload.to, { 
-                        document: { url: filePath }, 
+                    await sock.sendMessage(payload.to, {
+                        document: { url: filePath },
                         fileName: fileName,
                         mimetype: mimetype
                     });
@@ -231,7 +231,7 @@ process.stdin.on("data", async (data) => {
             }
         }
     } catch (e) {
-        // Error handling
+        console.log(`[!] Bridge stdin error: ${e.message}`);
     }
 });
 
