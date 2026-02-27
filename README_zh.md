@@ -8,7 +8,7 @@ pip install mmclaw
 ```
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/MMClaw_LOGO.jpg" width="400"/>
+<img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/MMCLAW_LOGO.jpg" width="400"/>
 </p>
 
 **主页:** [https://github.com/CrawlScript/MMClaw](https://github.com/CrawlScript/MMClaw)
