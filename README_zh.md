@@ -7,15 +7,17 @@
 pip install mmclaw
 ```
 
+<p align="center">
+<img src="MMClaw_LOGO.jpg" width="400"/>
+</p>
+
 **主页:** [https://github.com/CrawlScript/MMClaw](https://github.com/CrawlScript/MMClaw)
 
 [English](README.md) | **中文说明**
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-<p align="center">
-<img src="MMClaw_LOGO.jpg" width="400"/>
-</p>
+
 
 
 > **说明：** 本项目在 v0.0.11 之前名为 [pipclaw](https://github.com/CrawlScript/pipclaw)。
