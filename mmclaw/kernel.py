@@ -4,27 +4,14 @@ import json
 import re
 from .providers import Engine
 from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool
-
-class Memory(object):
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
-        self.history = [{"role": "system", "content": system_prompt}]
-    
-    def add(self, role, content): 
-        self.history.append({"role": role, "content": content})
-    
-    def get_all(self): 
-        return self.history
-
-    def reset(self):
-        """Clears the history except for the system prompt."""
-        self.history = [{"role": "system", "content": self.system_prompt}]
+from .memory import InMemoryMemory, FileMemory
 
 class MMClaw(object):
     def __init__(self, config, connector, system_prompt):
         self.engine = Engine(config)
         self.connector = connector
-        self.memory = Memory(system_prompt)
+        memory_type = config.get("memory_type", "file")
+        self.memory = FileMemory(system_prompt) if memory_type == "file" else InMemoryMemory(system_prompt)
         self.task_queue = queue.Queue()
         self.debug = config.get("debug", False)
         

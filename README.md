@@ -87,15 +87,7 @@ MMClaw supports a wide range of LLM providers:
 - **OpenAI-Compatible**: Customizable Base URL for local or third-party engines (Ollama, LocalAI, etc.).
 - **Others**: OpenRouter and more.
 
-## 📂 Project Structure
 
-```text
-mmclaw/
-├── kernel/          # Core agent loop & state logic
-├── connectors/      # Telegram, WhatsApp, and Web UI bridges
-├── providers/       # LLM connectors (OpenAI, Anthropic, etc.)
-└── tools/           # Extensible toolset (Search, Code Exec, etc.)
-```
 
 ---
 *Developed with ❤️ for the Python community. Let's keep it simple.*

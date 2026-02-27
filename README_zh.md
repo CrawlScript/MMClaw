@@ -85,13 +85,7 @@ MMClaw 支持多种主流 LLM 引擎：
 - **OpenAI-Compatible**: 支持自定义 Base URL，可连接本地或第三方引擎（如 Ollama, LocalAI 等）。
 - **其他**: 支持 OpenRouter 等聚合平台。
 
-```text
-mmclaw/
-├── kernel/          # 核心 Agent 循环与状态逻辑
-├── connectors/      # Telegram、飞书、WhatsApp 和 Web UI 桥接
-├── providers/       # LLM 连接器 (OpenAI, Anthropic 等)
-└── tools/           # 可扩展工具集 (搜索, 代码执行等)
-```
+
 
 ---
 *为 Python 社区倾情打造 ❤️。保持简单。*
