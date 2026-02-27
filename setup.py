@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.32",
+    version="0.0.33-dev",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
@@ -29,10 +29,14 @@ setup(
         "openai",
         "pyTelegramBotAPI",
         "Pillow",
+
+        "reportlab>=4.0.0",
+        "pypdf>=4.0.0",
     ],
     extras_require={
         "all": [
-            "lark-oapi >= 1.5.3",
+            "lark-oapi == 1.5.3",
+            "pdfplumber>=0.11.0",
         ],
     },
     
