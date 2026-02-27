@@ -46,6 +46,7 @@ async function startBot() {
     const { state, saveCreds } = auth;
 
     sock = makeWASocket({
+        version: [2, 3000, 1034074495], 
         auth: state,
         logger: pino({ level: "silent" }),
         printQRInTerminal: false,
@@ -116,8 +117,11 @@ async function startBot() {
                              messageContent.listResponseMessage?.singleSelectReply?.selectedRowId ||
                              "";
 
-                const imageMsg = messageContent.imageMessage || 
+                const imageMsg = messageContent.imageMessage ||
                                  (messageContent.documentMessage?.mimetype?.startsWith("image/") ? messageContent.documentMessage : null);
+                const documentMsg = messageContent.documentMessage &&
+                                    !messageContent.documentMessage.mimetype?.startsWith("image/")
+                                    ? messageContent.documentMessage : null;
 
                 if (imageMsg) {
                     try {
@@ -125,12 +129,12 @@ async function startBot() {
                             msg,
                             'buffer',
                             {},
-                            { 
+                            {
                                 logger: pino({ level: "silent" }),
                                 reuploadRequest: sock.updateMediaMessage
                             }
                         );
-                        
+
                         console.log("JSON_EVENT:" + JSON.stringify({
                             type: "image",
                             from: jid,
@@ -140,6 +144,30 @@ async function startBot() {
                         }));
                     } catch (err) {
                         console.log(`[!] Bridge Image Download Error: ${err.message}`);
+                    }
+                } else if (documentMsg) {
+                    try {
+                        const buffer = await downloadMediaMessage(
+                            msg,
+                            'buffer',
+                            {},
+                            {
+                                logger: pino({ level: "silent" }),
+                                reuploadRequest: sock.updateMediaMessage
+                            }
+                        );
+
+                        console.log("JSON_EVENT:" + JSON.stringify({
+                            type: "file",
+                            from: jid,
+                            base64: buffer.toString('base64'),
+                            filename: documentMsg.fileName || "file",
+                            mimetype: documentMsg.mimetype || "application/octet-stream",
+                            caption: documentMsg.caption || "",
+                            fromMe: msg.key.fromMe
+                        }));
+                    } catch (err) {
+                        console.log(`[!] Bridge Document Download Error: ${err.message}`);
                     }
                 } else if (text) {
                     console.log("JSON_EVENT:" + JSON.stringify({

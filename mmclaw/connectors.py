@@ -7,6 +7,7 @@ import shutil
 import random
 import base64
 import io
+import tempfile
 from .config import ConfigManager
 from .providers import prepare_image_content
 
@@ -107,7 +108,7 @@ class FeishuConnector(object):
                     if not response.success():
                         print(f"[!] Feishu Image Download Error: {response.code}, {response.msg}")
                         return
-                    
+
                     downloaded_file = response.file.read()
                     content = prepare_image_content(downloaded_file)
                     print(f"📩 Feishu: [Photo] (Compressed)")
@@ -116,6 +117,33 @@ class FeishuConnector(object):
                 except Exception as e:
                     print(f"[!] Feishu Photo Error: {e}")
                     self.send(f"Error processing image: {e}")
+            elif msg_type == "file":
+                file_key = msg_dict.get("file_key")
+                file_name = msg_dict.get("file_name", "file")
+                try:
+                    request = GetMessageResourceRequest.builder() \
+                        .message_id(self.last_message_id) \
+                        .file_key(file_key) \
+                        .type("file") \
+                        .build()
+                    response = self.client.im.v1.message_resource.get(request)
+                    if not response.success():
+                        print(f"[!] Feishu File Download Error: {response.code}, {response.msg}")
+                        return
+
+                    file_bytes = response.file.read()
+                    tmp_dir = tempfile.mkdtemp(prefix="mmclaw_")
+                    file_path = os.path.join(tmp_dir, file_name)
+                    with open(file_path, 'wb') as f:
+                        f.write(file_bytes)
+
+                    content = f"[Uploaded file: {file_path}]"
+                    print(f"📩 Feishu: [File] {file_name}")
+                    if self.callback:
+                        self.callback(content)
+                except Exception as e:
+                    print(f"[!] Feishu File Error: {e}")
+                    self.send(f"Error processing file: {e}")
         except Exception as e:
             print(f"[!] Feishu Parse Error: {e}")
         return None
@@ -259,6 +287,25 @@ class TelegramConnector(object):
                 except Exception as e:
                     print(f"[!] Telegram Photo Error: {e}")
                     self.send(f"Error processing image: {e}")
+            elif message.content_type == 'document':
+                try:
+                    doc = message.document
+                    file_info = self.bot.get_file(doc.file_id)
+                    downloaded_file = self.bot.download_file(file_info.file_path)
+
+                    tmp_dir = tempfile.mkdtemp(prefix="mmclaw_")
+                    file_path = os.path.join(tmp_dir, doc.file_name)
+                    with open(file_path, 'wb') as f:
+                        f.write(downloaded_file)
+
+                    content = f"[Uploaded file: {file_path}]"
+                    if text:
+                        content += f"\n{text}"
+                    print(f"📩 Telegram: [Document] {doc.file_name}{' | ' + text if text else ''}")
+                    callback(content)
+                except Exception as e:
+                    print(f"[!] Telegram Document Error: {e}")
+                    self.send(f"Error processing file: {e}")
             else:
                 if text:
                     print(f"📩 Telegram: {text}")
@@ -444,6 +491,33 @@ class WhatsAppConnector(object):
                                     self.callback(content)
                             except Exception as e:
                                 print(f"[!] WhatsApp Image Error: {e}")
+
+                        elif event["type"] == "file":
+                            sender = event["from"]
+                            b64_data = event["base64"]
+                            filename = event.get("filename", "file")
+                            caption = event.get("caption", "").strip()
+                            from_me = event.get("fromMe", False)
+
+                            if not self.authorized_id or sender != self.authorized_id:
+                                continue
+
+                            try:
+                                file_bytes = base64.b64decode(b64_data)
+                                tmp_dir = tempfile.mkdtemp(prefix="mmclaw_")
+                                file_path = os.path.join(tmp_dir, filename)
+                                with open(file_path, 'wb') as f:
+                                    f.write(file_bytes)
+
+                                content = f"[Uploaded file: {file_path}]"
+                                if caption:
+                                    content += f"\n{caption}"
+                                print(f"📩 WhatsApp: [Document] {filename}{' | ' + caption if caption else ''}")
+                                self.active_recipient = sender
+                                if self.callback:
+                                    self.callback(content)
+                            except Exception as e:
+                                print(f"[!] WhatsApp Document Error: {e}")
 
                         elif event["type"] == "connected":
                             if not self.authorized_id:
