@@ -3,6 +3,7 @@ const {
     useMultiFileAuthState,
     DisconnectReason,
     downloadMediaMessage,
+    fetchLatestBaileysVersion,
 } = require("@whiskeysockets/baileys");
 const qrcode = require("qrcode-terminal");
 const pino = require("pino");
@@ -45,8 +46,9 @@ async function startBot() {
     
     const { state, saveCreds } = auth;
 
+    const { version } = await fetchLatestBaileysVersion();
     sock = makeWASocket({
-        version: [2, 3000, 1034074495], 
+        version,
         auth: state,
         logger: pino({ level: "silent" }),
         printQRInTerminal: false,
