@@ -1,3 +1,7 @@
+<p align="center">
+<img src="MMClaw_LOGO.jpg" width="200"/>
+</p>
+
 # 🐈 MMClaw
 
 超轻量级、纯 Python 开发的 AI Agent 内核。

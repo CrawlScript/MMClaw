@@ -1,3 +1,8 @@
+<p align="center">
+<img src="MMClaw_LOGO.jpg" width="200"/>
+</p>
+
+
 # 🐈 MMClaw
 
 The Ultra-Lightweight, Pure Python Kernel for Multimodal AI Agents.
