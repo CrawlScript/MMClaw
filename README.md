@@ -2,6 +2,10 @@
 
 The Ultra-Lightweight, Pure Python Kernel for Multimodal AI Agents.
 
+```bash
+pip install mmclaw
+```
+
 **Home:** [https://github.com/CrawlScript/MMClaw](https://github.com/CrawlScript/MMClaw)
 
 **English** | [中文说明](README_zh.md)
@@ -28,7 +32,6 @@ Control your AI agent from anywhere, through the apps you already use.
 - **Custom Skills** — Extend your agent with your own skills; teach it new commands, workflows, and domain knowledge to do exactly what you need.
 - **Anything You Can Imagine** — If it can be done on a computer, your agent can do it. The only limit is your imagination.
 
----
 
 ## 🌟 Key Features
 
@@ -52,6 +55,7 @@ If you plan to use **Feishu (飞书)** as your connector, install with the `[all
 ```bash
 pip install mmclaw[all]
 ```
+
 
 ## 🛠 The Philosophy
 

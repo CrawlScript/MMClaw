@@ -2,6 +2,10 @@
 
 超轻量级、纯 Python 开发的 AI Agent 内核。
 
+```bash
+pip install mmclaw
+```
+
 **主页:** [https://github.com/CrawlScript/MMClaw](https://github.com/CrawlScript/MMClaw)
 
 [English](README.md) | **中文说明**
