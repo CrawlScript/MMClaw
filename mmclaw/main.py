@@ -13,7 +13,7 @@ def run_setup(existing_config=None):
     
     need_auth = False
     
-    print("\n--- 🐈 MMClaw Setup Wizard ---")
+    print("\n--- ⚡ MMClaw Setup Wizard ---")
     config = existing_config.copy() if existing_config else ConfigManager.DEFAULT_CONFIG.copy()
     
     # Ensure nested dicts exist

@@ -2,12 +2,12 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.35",
+    version="0.0.37",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
 
-    description="🐈 MMClaw: Ultra-Lightweight, Pure Python Multimodal Agent.",
+    description="⚡ MMClaw: Ultra-Lightweight, Pure Python Multimodal Agent.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/CrawlScript/MMClaw",

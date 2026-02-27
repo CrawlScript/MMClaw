@@ -1,5 +1,5 @@
 
-# 🐈 MMClaw
+# ⚡ MMClaw
 
 超轻量级、纯 Python 开发的 AI Agent 内核。
 
@@ -8,7 +8,7 @@ pip install mmclaw
 ```
 
 <p align="center">
-<img src="MMClaw_LOGO.jpg" width="400"/>
+<img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/MMClaw_LOGO.jpg" width="400"/>
 </p>
 
 **主页:** [https://github.com/CrawlScript/MMClaw](https://github.com/CrawlScript/MMClaw)

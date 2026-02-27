@@ -25,11 +25,11 @@ class TerminalConnector(object):
     def stop_typing(self): pass
 
     def send(self, message):
-        print(f"\r🐈 MMClaw: {message}\n👤 You: ", end="", flush=True)
+        print(f"\r⚡ MMClaw: {message}\n👤 You: ", end="", flush=True)
 
     def send_file(self, path):
         full_path = os.path.expanduser(path)
-        print(f"\r🐈 MMClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
+        print(f"\r⚡ MMClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
 
 class FeishuConnector(object):
     def __init__(self, app_id, app_secret, config=None):
@@ -80,7 +80,7 @@ class FeishuConnector(object):
                     
                     ConfigManager.save(self.config)
                     print(f"\n[⭐] AUTH SUCCESS! MMClaw is now locked to Feishu User: {sender_id}")
-                    self.send("🐈 Verification Successful! I am now your personal agent.")
+                    self.send("⚡ Verification Successful! I am now your personal agent.")
                     
                     if self.stop_on_auth:
                         os._exit(0) # Brutal but effective for a CLI wizard setup
@@ -323,7 +323,7 @@ class TelegramConnector(object):
         chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
         for chunk in chunks:
             try:
-                self.bot.send_message(self.telegram_authorized_user_id, f"🐈 {chunk}")
+                self.bot.send_message(self.telegram_authorized_user_id, f"⚡ {chunk}")
             except Exception as e:
                 print(f"[!] Telegram Send Error: {e}")
                 break
@@ -448,7 +448,7 @@ class WhatsAppConnector(object):
                                     
                                     ConfigManager.save(self.config)
                                     print(f"\n[⭐] AUTH SUCCESS! MMClaw is now locked to: {sender}")
-                                    self.send("🐈 Verification Successful! I am now your personal agent.")
+                                    self.send("⚡ Verification Successful! I am now your personal agent.")
                                     
                                     if stop_on_auth:
                                         self.process.terminate()
