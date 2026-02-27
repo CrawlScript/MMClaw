@@ -18,6 +18,18 @@ MMClaw strips away the complexity, offering a crystal-clear, readable architectu
 
 ---
 
+## Use Cases
+
+Control your AI agent from anywhere, through the apps you already use.
+
+- **Chat & Automate** — Send messages via Telegram, WhatsApp, or Feishu to ask questions, run commands, manage files, or delegate complex multi-step tasks to your agent.
+- **Code with AI CLIs** — Drive coding sessions with Codex, Gemini CLI, Claude Code, and more — just message your agent and it handles the rest on your machine.
+- **Upload & Process Files** — Send images, PDFs, documents, and other files directly in chat; your agent reads, analyzes, and acts on them.
+- **Custom Skills** — Extend your agent with your own skills; teach it new commands, workflows, and domain knowledge to do exactly what you need.
+- **Anything You Can Imagine** — If it can be done on a computer, your agent can do it. The only limit is your imagination.
+
+---
+
 ## 🌟 Key Features
 
 * 100% Pure Python: No C-extensions, no Node.js, no Docker. If you have Python, you have MMClaw.
