@@ -296,6 +296,9 @@ def run_setup(existing_config=None):
 
 def main():
     import sys
+    from .config import SkillManager
+    SkillManager.sync_skills()
+    
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(line_buffering=True)
         sys.stderr.reconfigure(line_buffering=True)

@@ -7,6 +7,9 @@ import platform
 class SkillManager(object):
     HOME_SKILLS_DIR = Path.home() / ".mmclaw" / "skills"
     PKG_SKILLS_DIR = Path(__file__).parent / "skills"
+    
+    _cache_prompt = None
+    _cache_mtime = 0
 
     @classmethod
     def sync_skills(cls):
@@ -19,9 +22,9 @@ class SkillManager(object):
                 if not skill_dir.is_dir():
                     continue
                 dest = cls.HOME_SKILLS_DIR / skill_dir.name
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(skill_dir, dest)
+                # Only copy if it doesn't exist to avoid overwriting user changes or causing unnecessary mtime updates
+                if not dest.exists():
+                    shutil.copytree(skill_dir, dest)
 
     @classmethod
     def _parse_frontmatter(cls, text):
@@ -39,16 +42,34 @@ class SkillManager(object):
         return meta, parts[2].strip()
 
     @classmethod
-    def get_skills_prompt(cls):
+    def get_skills_prompt(cls, force=False):
         """Build a lightweight skills index for the system prompt.
-
-        Only name, description, and path are included so the agent can call
-        file_read(<path>) to load full skill details on demand.
+        
+        Uses mtime caching and partial reads to avoid redundant filesystem scans.
         """
         if not cls.HOME_SKILLS_DIR.exists():
             return ""
 
+        try:
+            # Detect additions, removals, and changes to any skill.md
+            current_mtime = cls.HOME_SKILLS_DIR.stat().st_mtime
+            for skill_dir in cls.HOME_SKILLS_DIR.iterdir():
+                if skill_dir.is_dir():
+                    skill_file = skill_dir / "skill.md"
+                    if skill_file.exists():
+                        current_mtime = max(current_mtime, skill_file.stat().st_mtime)
+            
+            if not force and cls._cache_prompt is not None and current_mtime <= cls._cache_mtime:
+                return cls._cache_prompt
+        except Exception:
+            current_mtime = 0
+
+        # Only print if this isn't the first time loading (bootup)
+        if cls._cache_prompt is not None:
+            print("[*] Skill update detected.")
+
         entries = []
+        # Sort by directory name for stable prompt (LLM KV cache friendly)
         for skill_dir in sorted(cls.HOME_SKILLS_DIR.iterdir()):
             if not skill_dir.is_dir():
                 continue
@@ -56,14 +77,24 @@ class SkillManager(object):
             if not skill_file.exists():
                 continue
             try:
-                meta, _ = cls._parse_frontmatter(skill_file.read_text(encoding="utf-8"))
+                # Read only first 2KB for frontmatter to save IO
+                with open(skill_file, "r", encoding="utf-8") as f:
+                    head = f.read(2048)
+                meta, _ = cls._parse_frontmatter(head)
             except Exception:
                 continue
-            name = meta.get("name", skill_dir.name)
+            
+            # Defensive: only include skills that are "ready" (have a name)
+            name = meta.get("name")
+            if not name:
+                continue
+            
             description = meta.get("description", "")
             entries.append(f"- name: {name}\n  description: {description}\n  path: {skill_file}")
 
         if not entries:
+            cls._cache_prompt = ""
+            cls._cache_mtime = current_mtime
             return ""
 
         skills_text = (
@@ -72,6 +103,9 @@ class SkillManager(object):
             "To get full instructions for a skill, call file_read(<path>) before using it.\n\n"
             "Available Skills:\n"
         ) + "\n".join(entries) + "\n"
+        
+        cls._cache_prompt = skills_text
+        cls._cache_mtime = current_mtime
         return skills_text
 
 class ConfigManager(object):
@@ -257,9 +291,11 @@ class ConfigManager(object):
 
     @classmethod
     def get_full_prompt(cls, mode="terminal"):
-        """Combine base prompt with synchronized skills and interface context."""
-        SkillManager.sync_skills()
+        """Combine base prompt with skills and interface context.
         
+        Note: sync_skills should be called once at startup, not here, 
+        to allow for fast frequent refreshes of the prompt index.
+        """
         interface_context = f"\n\n[INTERFACE CONTEXT]\nYou are currently responding via: {mode.upper()}\n"
         if mode == "telegram":
             interface_context += (

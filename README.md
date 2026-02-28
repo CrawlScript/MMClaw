@@ -12,7 +12,7 @@ pip install mmclaw
 
 **Home:** [https://github.com/CrawlScript/MMClaw](https://github.com/CrawlScript/MMClaw)
 
-**English** | [中文说明](README_zh.md)
+**English** | [中文说明](https://github.com/CrawlScript/MMClaw/blob/main/README_zh.md)
 
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)

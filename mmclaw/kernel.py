@@ -43,6 +43,13 @@ class MMClaw(object):
             
             self.connector.start_typing()
             while True:
+                # Refresh system prompt before every call to pick up new skills or context changes
+                from .config import ConfigManager
+                new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
+                self.memory.system_prompt = new_prompt
+                if self.memory.history and self.memory.history[0]["role"] == "system":
+                    self.memory.history[0]["content"] = new_prompt
+
                 response_msg = self.engine.ask(self.memory.get_all())
                 raw_text = response_msg.get("content", "")
                 
