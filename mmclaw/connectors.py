@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import threading
+import time
 import telebot
 import shutil
 import random
@@ -12,24 +13,51 @@ from .config import ConfigManager
 from .providers import prepare_image_content
 
 class TerminalConnector(object):
+    def __init__(self):
+        self._typing = False
+        self._input_ready = threading.Event()
+        self._input_ready.set()
+        self._print_lock = threading.Lock()
+
     def listen(self, callback):
         print("\n--- MMClaw Kernel Active (Terminal Mode) ---")
         while True:
             try:
+                self._input_ready.wait()
                 text = input("👤 You: ").strip()
                 if text.lower() in ["exit", "quit"]: break
-                if text: callback(text) 
+                if text:
+                    self._input_ready.clear()
+                    callback(text)
             except KeyboardInterrupt: break
 
-    def start_typing(self): pass
-    def stop_typing(self): pass
+    def start_typing(self):
+        self._typing = True
+        def _animate():
+            chars = ["|", "/", "-", "\\"]
+            i = 0
+            while self._typing:
+                with self._print_lock:
+                    print(f"\r    ⚡ MMClaw: {chars[i % len(chars)]} thinking...", end="", flush=True)
+                i += 1
+                time.sleep(0.15)
+        threading.Thread(target=_animate, daemon=True).start()
+
+    def stop_typing(self):
+        self._typing = False
+        time.sleep(0.2)  # Let animation thread finish its current iteration
+        with self._print_lock:
+            print("\r\033[K", end="", flush=True)
+        self._input_ready.set()
 
     def send(self, message):
-        print(f"\r⚡ MMClaw: {message}\n👤 You: ", end="", flush=True)
+        with self._print_lock:
+            print(f"\r\033[K    ⚡ MMClaw: {message}", flush=True)
 
     def send_file(self, path):
         full_path = os.path.expanduser(path)
-        print(f"\r⚡ MMClaw: [FILE SENT] {os.path.abspath(full_path)}\n👤 You: ", end="", flush=True)
+        with self._print_lock:
+            print(f"\r\033[K    ⚡ MMClaw: [FILE SENT] {os.path.abspath(full_path)}", flush=True)
 
 class FeishuConnector(object):
     def __init__(self, app_id, app_secret, config=None):
