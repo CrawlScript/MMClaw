@@ -191,6 +191,10 @@ class ConfigManager(object):
                 "app_id": None,
                 "app_secret": None,
                 "authorized_id": None
+            },
+            "qqbot": {
+                "app_id": None,
+                "app_secret": None
             }
         }
     }

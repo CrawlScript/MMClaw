@@ -3,6 +3,7 @@ import json
 import subprocess
 import threading
 import time
+import asyncio
 import telebot
 import shutil
 import random
@@ -139,7 +140,7 @@ class FeishuConnector(object):
                         return
 
                     downloaded_file = response.file.read()
-                    content = prepare_image_content(downloaded_file)
+                    content = prepare_image_content(downloaded_file, "这张图片里有什么？")
                     print(f"📩 Feishu: [Photo] (Compressed)")
                     if self.callback:
                         self.callback(content)
@@ -650,3 +651,97 @@ class WhatsAppConnector(object):
                 self._write_stdin(f"SEND_FILE:{json.dumps(payload)}\n")
         except Exception as e:
             print(f"[!] WhatsApp send_file error: {e}")
+
+class QQBotConnector(object):
+    def __init__(self, app_id, app_secret, config=None):
+        try:
+            import botpy
+        except ImportError:
+            raise ImportError("botpy 未安装，请运行: pip install qq-botpy")
+
+        self.app_id = app_id
+        self.app_secret = app_secret
+        self.config = config if config else ConfigManager.load()
+        self.callback = None
+        self._client = None
+        self._loop = None
+        self._api = None
+        self._last_message = None   # ('c2c', message_obj)
+        self._msg_seq = {}          # Per-user message sequence counter
+
+    def listen(self, callback):
+        import botpy
+        self.callback = callback
+        connector = self
+
+        class MMClawBot(botpy.Client):
+            async def on_ready(self):
+                connector._loop = asyncio.get_event_loop()
+                connector._api = self.api
+                print("\n[✅] QQ Bot is online! Send a direct message to the bot to start.")
+
+            async def on_c2c_message_create(self, message):
+                """Triggered when a user sends a direct message to the bot."""
+                import urllib.request
+                connector._last_message = ("c2c", message)
+                text = message.content.strip()
+
+                attachments = getattr(message, "attachments", None)
+                if attachments:
+                    for att in attachments:
+                        if getattr(att, "content_type", "").startswith("image/"):
+                            try:
+                                with urllib.request.urlopen(att.url, timeout=15) as resp:
+                                    image_bytes = resp.read()
+                                content = prepare_image_content(image_bytes, text if text else "这张图片里有什么？")
+                                print(f"📩 QQ: [Photo] {text} (Compressed)")
+                                if connector.callback:
+                                    threading.Thread(target=connector.callback, args=(content,), daemon=True).start()
+                            except Exception as e:
+                                print(f"[!] QQ Bot Photo Error: {e}")
+                            return
+
+                if text and connector.callback:
+                    print(f"📩 QQ: {text}")
+                    threading.Thread(target=connector.callback, args=(text,), daemon=True).start()
+
+        print("\n--- MMClaw Kernel Active (QQ Bot Mode) ---")
+        intents = botpy.Intents(public_messages=True)
+        connector._client = MMClawBot(intents=intents, bot_log=False)
+        connector._client.run(appid=self.app_id, secret=self.app_secret)
+
+    def start_typing(self): pass
+    def stop_typing(self): pass
+
+    async def _send_async(self, text):
+        if not self._last_message or not self._api:
+            return
+        _, msg = self._last_message
+        openid = msg.author.user_openid
+        self._msg_seq[openid] = self._msg_seq.get(openid, 0) + 1
+        try:
+            await self._api.post_c2c_message(
+                openid=openid,
+                msg_type=0,
+                content=text,
+                msg_id=msg.id,
+                msg_seq=self._msg_seq[openid]
+            )
+        except Exception as e:
+            print(f"[!] QQ Bot Reply Error: {e}")
+
+    def send(self, message):
+        if not self._loop or not self._last_message:
+            return
+        limit = 4000
+        chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
+        for chunk in chunks:
+            future = asyncio.run_coroutine_threadsafe(self._send_async(chunk), self._loop)
+            try:
+                future.result(timeout=30)
+            except Exception as e:
+                print(f"[!] QQ Bot Send Error: {e}")
+                break
+
+    def send_file(self, path):
+        self.send("❌ QQ Bot 暂不支持发送文件。")

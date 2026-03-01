@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.42",
+    version="0.0.43",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
@@ -32,6 +32,7 @@ setup(
 
         "reportlab>=4.0.0",
         "pypdf>=4.0.0",
+        "qq-botpy==1.2.1",
     ],
     extras_require={
         "all": [

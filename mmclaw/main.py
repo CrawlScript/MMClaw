@@ -7,7 +7,7 @@ import base64
 import time
 from .config import ConfigManager
 from .kernel import MMClaw
-from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector
+from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector, QQBotConnector
 
 def run_setup(existing_config=None):
     
@@ -218,7 +218,8 @@ def run_setup(existing_config=None):
         print("2. Telegram Mode")
         print("3. WhatsApp Mode (Scan QR Code)")
         print("4. Feishu (飞书) Mode")
-        choice = input("Select mode (1, 2, 3, or 4) [Keep current]: ").strip()
+        print("5. QQ Bot (QQ机器人) Mode")
+        choice = input("Select mode (1, 2, 3, 4, or 5) [Keep current]: ").strip()
 
         if choice == "4":
             config["connector_type"] = "feishu"
@@ -288,6 +289,28 @@ def run_setup(existing_config=None):
             else:
                 config["connectors"]["whatsapp"]["authorized_id"] = None
                 need_auth = True
+        elif choice == "5":
+            config["connector_type"] = "qqbot"
+            print("\n--- 🛠 QQ Bot (QQ机器人) 配置 ---")
+            if "qqbot" not in config["connectors"]:
+                config["connectors"]["qqbot"] = {}
+
+            print("[*] 第一步：打开 QQ 开放平台 (https://q.qq.com)，注册账号并绑定你的 QQ 号。")
+            input("    完成后请按回车键 continue...")
+            print("[*] 第二步：在控制台点击\"创建应用\"，选择\"机器人\"类型并完成创建。")
+            input("    完成后请按回车键 continue...")
+            print("[*] 第三步：进入应用详情，在\"开发管理\"页面复制 AppID 并输入：")
+            config["connectors"]["qqbot"]["app_id"] = ask("    输入 AppID", "app_id", None, nested_connector="qqbot")
+            print("[*] 第四步：在同一\"开发管理\"页面，点击\"生成机器人密钥\"并输入：")
+            config["connectors"]["qqbot"]["app_secret"] = ask("    输入 AppSecret (机器人密钥)", "app_secret", None, nested_connector="qqbot")
+            print("[*] 第五步：在\"开发管理\"页面的\"IP白名单\"中，添加运行 MMClaw 的机器 IP 地址。")
+            input("    完成后请按回车键 continue...")
+            print("[*] 第六步：进入\"沙箱配置\"页面，在\"消息列表配置\"中点击\"添加成员\"，将自己的 QQ 号加入。")
+            input("    完成后请按回车键 continue...")
+            print("[*] 第七步：进入\"使用范围和人员\"页面，扫码\"添加到 群和消息列表\"，即可将机器人添加到你的消息列表。")
+            input("    完成后请按回车键 continue...")
+            print("[✓] 配置完成。无需\"发布上架\"，沙箱模式即可使用。")
+            print("    启动后，直接私聊机器人即可交互。")
         elif choice == "1":
             config["connector_type"] = "terminal"
 
@@ -328,6 +351,9 @@ def main():
     elif mode == "feishu":
         fs = connectors_config.get("feishu", {})
         connector = FeishuConnector(fs.get("app_id"), fs.get("app_secret"), config=config)
+    elif mode == "qqbot":
+        qq = connectors_config.get("qqbot", {})
+        connector = QQBotConnector(qq.get("app_id"), qq.get("app_secret"), config=config)
     else: connector = TerminalConnector()
 
     engine_type = config.get("engine_type", "openai")
