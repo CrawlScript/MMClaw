@@ -134,7 +134,9 @@ class ConfigManager(object):
         "- reset_session() Use this when the user asks for a 'new session', 'fresh start', or to 'clear history'.\n\n"
         "IMPORTANT: For long-running or blocking commands (e.g. starting a server, running ngrok, or any process "
         "that does not exit on its own), you MUST use 'shell_async'. "
-        "Using 'shell_execute' for these will cause the agent to hang."
+        "Using 'shell_execute' for these will cause the agent to hang.\n\n"
+        "IMPORTANT: When creating files and no destination path is specified by the user, always write to the "
+        "system temp directory. The agent's working directory is an internal path with no meaning to the user."
     )
 
     DEFAULT_CONFIG = {

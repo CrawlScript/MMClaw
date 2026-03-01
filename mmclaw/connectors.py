@@ -9,6 +9,7 @@ import random
 import base64
 import io
 import tempfile
+from contextlib import contextmanager
 from .config import ConfigManager
 from .providers import prepare_image_content
 
@@ -380,6 +381,10 @@ class WhatsAppConnector(object):
         self.is_windows = os.name == 'nt'
         self._deps_checked = False
         self._typing = False
+        self._stdin_lock = threading.Lock()
+        self._stop_typing_event = threading.Event()
+        self._ack_event = threading.Event()
+        self._ack_error = None
 
     def _ensure_node(self):
         if not shutil.which("node"):
@@ -476,11 +481,19 @@ class WhatsAppConnector(object):
                                     
                                     ConfigManager.save(self.config)
                                     print(f"\n[⭐] AUTH SUCCESS! MMClaw is now locked to: {sender}")
-                                    self.send("⚡ Verification Successful! I am now your personal agent.")
-                                    
+
                                     if stop_on_auth:
+                                        # Fire-and-forget: bypass ACK wait since we're exiting immediately
+                                        try:
+                                            payload = {"to": sender, "text": "⚡ Verification Successful! I am now your personal agent."}
+                                            self._write_stdin(f"SEND:{json.dumps(payload)}\n")
+                                        except Exception:
+                                            pass
                                         self.process.terminate()
-                                        return
+                                        os._exit(0)
+                                    else:
+                                        # Dispatch to thread — output_reader must keep running to handle ACKs
+                                        threading.Thread(target=self.send, args=("⚡ Verification Successful! I am now your personal agent.",), daemon=True).start()
                                     continue
                                 else:
                                     continue
@@ -494,7 +507,7 @@ class WhatsAppConnector(object):
                             print(f"📩 WhatsApp: {text}")
                             self.active_recipient = sender
                             if self.callback:
-                                self.callback(text)
+                                threading.Thread(target=self.callback, args=(text,), daemon=True).start()
 
                         elif event["type"] == "image":
                             sender = event["from"]
@@ -516,7 +529,7 @@ class WhatsAppConnector(object):
                                 print(f"📩 WhatsApp: [Photo] {caption} (Compressed)")
                                 self.active_recipient = sender
                                 if self.callback:
-                                    self.callback(content)
+                                    threading.Thread(target=self.callback, args=(content,), daemon=True).start()
                             except Exception as e:
                                 print(f"[!] WhatsApp Image Error: {e}")
 
@@ -543,7 +556,7 @@ class WhatsAppConnector(object):
                                 print(f"📩 WhatsApp: [Document] {filename}{' | ' + caption if caption else ''}")
                                 self.active_recipient = sender
                                 if self.callback:
-                                    self.callback(content)
+                                    threading.Thread(target=self.callback, args=(content,), daemon=True).start()
                             except Exception as e:
                                 print(f"[!] WhatsApp Document Error: {e}")
 
@@ -558,6 +571,14 @@ class WhatsAppConnector(object):
                                     self.process.terminate()
                                     return
 
+                        elif event["type"] in ("msg_sent", "file_sent"):
+                            self._ack_error = None
+                            self._ack_event.set()
+
+                        elif event["type"] in ("msg_error", "file_error"):
+                            self._ack_error = event.get("error", "unknown error")
+                            self._ack_event.set()
+
                     except Exception as e:
                         print(f"[!] Bridge Parse Error: {e}")
                 else:
@@ -566,27 +587,43 @@ class WhatsAppConnector(object):
         threading.Thread(target=output_reader, daemon=True).start()
         self.process.wait()
 
+    def _write_stdin(self, data):
+        with self._stdin_lock:
+            self.process.stdin.write(data)
+            self.process.stdin.flush()
+
     def _send_presence(self, action):
         recipient = self.active_recipient or self.authorized_id
         if not self.process or not recipient: return
         try:
             payload = {"to": recipient, "action": action}
-            self.process.stdin.write(f"TYPING:{json.dumps(payload)}\n")
-            self.process.stdin.flush()
+            self._write_stdin(f"TYPING:{json.dumps(payload)}\n")
         except Exception:
             pass
 
     def start_typing(self):
         self._typing = True
+        self._stop_typing_event.clear()
         def _type_loop():
             while self._typing:
                 self._send_presence("composing")
-                threading.Event().wait(1)
+                self._stop_typing_event.wait(1)
         threading.Thread(target=_type_loop, daemon=True).start()
 
     def stop_typing(self):
         self._typing = False
+        self._stop_typing_event.set()
         self._send_presence("paused")
+
+    @contextmanager
+    def _wa_send(self, timeout=60):
+        self._ack_event.clear()
+        self._ack_error = None
+        yield
+        if not self._ack_event.wait(timeout=timeout):
+            raise TimeoutError("WhatsApp send timed out")
+        if self._ack_error:
+            raise RuntimeError(f"WhatsApp send failed: {self._ack_error}")
 
     def send(self, message):
         if not self.process or not (self.active_recipient or self.authorized_id): return
@@ -596,13 +633,20 @@ class WhatsAppConnector(object):
         for chunk in chunks:
             self.last_sent_text = chunk
             payload = {"to": recipient, "text": chunk}
-            self.process.stdin.write(f"SEND:{json.dumps(payload)}\n")
-            self.process.stdin.flush()
+            try:
+                with self._wa_send():
+                    self._write_stdin(f"SEND:{json.dumps(payload)}\n")
+            except Exception as e:
+                print(f"[!] WhatsApp send error: {e}")
+                break
 
     def send_file(self, path):
         if not self.process or not (self.active_recipient or self.authorized_id): return
         recipient = self.active_recipient or self.authorized_id
         full_path = os.path.abspath(os.path.expanduser(path))
         payload = {"to": recipient, "path": full_path}
-        self.process.stdin.write(f"SEND_FILE:{json.dumps(payload)}\n")
-        self.process.stdin.flush()
+        try:
+            with self._wa_send(timeout=120):
+                self._write_stdin(f"SEND_FILE:{json.dumps(payload)}\n")
+        except Exception as e:
+            print(f"[!] WhatsApp send_file error: {e}")

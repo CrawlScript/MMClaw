@@ -42,75 +42,79 @@ class MMClaw(object):
             self.memory.add("user", user_text)
             
             self.connector.start_typing()
-            while True:
-                # Refresh system prompt before every call to pick up new skills or context changes
-                from .config import ConfigManager
-                new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
-                self.memory.system_prompt = new_prompt
-                if self.memory.history and self.memory.history[0]["role"] == "system":
-                    self.memory.history[0]["content"] = new_prompt
+            try:
+                while True:
+                    # Refresh system prompt before every call to pick up new skills or context changes
+                    from .config import ConfigManager
+                    new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
+                    self.memory.system_prompt = new_prompt
+                    if self.memory.history and self.memory.history[0]["role"] == "system":
+                        self.memory.history[0]["content"] = new_prompt
 
-                response_msg = self.engine.ask(self.memory.get_all())
-                raw_text = response_msg.get("content", "")
-                
-                # We save the raw response to memory to maintain context
-                self.memory.add("assistant", raw_text)
+                    response_msg = self.engine.ask(self.memory.get_all())
+                    raw_text = response_msg.get("content", "")
 
-                data = self._extract_json(raw_text)
-                if not data:
-                    self.connector.send(raw_text)
-                    break
+                    # We save the raw response to memory to maintain context
+                    self.memory.add("assistant", raw_text)
 
-                if data.get("content"):
-                    self.connector.send(data["content"])
-
-                tools = data.get("tools", [])
-                if not tools:
-                    break
-
-                for tool in tools:
-                    name = tool.get("name")
-                    args = tool.get("args", {})
-                    
-                    # Always print the tool name
-                    print(f"    [Tool Call: {name}]")
-                    if self.debug:
-                        print(f"    Args: {json.dumps(args)}")
-
-                    result = ""
-                    if name == "shell_execute":
-                        self.connector.send(f"🐚 Shell: `{args.get('command')}`")
-                        result = ShellTool.execute(args.get("command"))
-                    elif name == "shell_async":
-                        self.connector.send(f"🚀 Async Shell: `{args.get('command')}`")
-                        result = AsyncShellTool.execute(args.get("command"))
-                    elif name == "file_read":
-                        self.connector.send(f"📖 Read: `{args.get('path')}`")
-                        result = FileTool.read(args.get("path"))
-                    elif name == "file_write":
-                        self.connector.send(f"💾 Write: `{args.get('path')}`")
-                        result = FileTool.write(args.get("path"), args.get("content"))
-                    elif name == "file_upload":
-                        self.connector.send(f"📤 Upload: `{args.get('path')}`")
-                        self.connector.send_file(args.get("path"))
-                        result = f"File {args.get('path')} sent."
-                    elif name == "wait":
-                        self.connector.send(f"⏳ Waiting {args.get('seconds')}s...")
-                        result = TimerTool.wait(args.get("seconds"))
-                    elif name == "reset_session":
-                        self.memory.reset()
-                        self.connector.send("✨ Session reset! Starting fresh.")
-                        result = "Success: Session history cleared."
-                        # Break inner loop to start with fresh memory on next user input
+                    data = self._extract_json(raw_text)
+                    if not data:
+                        self.connector.send(raw_text)
                         break
-                    
-                    if self.debug:
-                        print(f"\n    [Tool Output: {name}]\n    {result}\n")
-                    # self.memory.add("system", f"Tool Output ({name}):\n{result}")
-                    self.memory.add("user", f"Tool Output ({name}):\n{result}")
 
-            self.connector.stop_typing()
-            self.task_queue.task_done()
+                    if data.get("content"):
+                        self.connector.send(data["content"])
+
+                    tools = data.get("tools", [])
+                    if not tools:
+                        break
+
+                    for tool in tools:
+                        name = tool.get("name")
+                        args = tool.get("args", {})
+
+                        # Always print the tool name
+                        print(f"    [Tool Call: {name}]")
+                        if self.debug:
+                            print(f"    Args: {json.dumps(args)}")
+
+                        result = ""
+                        if name == "shell_execute":
+                            self.connector.send(f"🐚 Shell: `{args.get('command')}`")
+                            result = ShellTool.execute(args.get("command"))
+                        elif name == "shell_async":
+                            self.connector.send(f"🚀 Async Shell: `{args.get('command')}`")
+                            result = AsyncShellTool.execute(args.get("command"))
+                        elif name == "file_read":
+                            self.connector.send(f"📖 Read: `{args.get('path')}`")
+                            result = FileTool.read(args.get("path"))
+                        elif name == "file_write":
+                            self.connector.send(f"💾 Write: `{args.get('path')}`")
+                            result = FileTool.write(args.get("path"), args.get("content"))
+                        elif name == "file_upload":
+                            self.connector.send(f"📤 Upload: `{args.get('path')}`")
+                            self.connector.send_file(args.get("path"))
+                            result = f"File {args.get('path')} sent."
+                        elif name == "wait":
+                            self.connector.send(f"⏳ Waiting {args.get('seconds')}s...")
+                            result = TimerTool.wait(args.get("seconds"))
+                        elif name == "reset_session":
+                            self.memory.reset()
+                            self.connector.send("✨ Session reset! Starting fresh.")
+                            result = "Success: Session history cleared."
+                            # Break inner loop to start with fresh memory on next user input
+                            break
+
+                        if self.debug:
+                            print(f"\n    [Tool Output: {name}]\n    {result}\n")
+                        # self.memory.add("system", f"Tool Output ({name}):\n{result}")
+                        self.memory.add("user", f"Tool Output ({name}):\n{result}")
+
+            except Exception as e:
+                print(f"[!] Worker error: {e}")
+            finally:
+                self.connector.stop_typing()
+                self.task_queue.task_done()
 
     def handle(self, text):
         self.task_queue.put(text)

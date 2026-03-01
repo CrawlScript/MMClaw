@@ -64,7 +64,9 @@ async function startBot() {
         
         if (qr && qr !== lastQr) {
             lastQr = qr;
-            console.log("\n--- SCAN THIS QR CODE WITH WHATSAPP ---");
+            console.log("\n--- LINK WHATSAPP DEVICE ---");
+            console.log("On Android: tap the three dots (⋮) in the top-right corner → Linked Devices → Link a Device → Scan QR");
+            console.log("On iPhone:  go to Settings → Linked Devices → Link a Device → Scan QR");
             const isWindows = process.platform === "win32";
             qrcode.generate(qr, { small: !isWindows });
         }
@@ -191,17 +193,22 @@ readline.createInterface({ input: process.stdin }).on("line", async (line) => {
     line = line.trim();
     try {
         if (line.startsWith("TYPING:")) {
-            const payload = JSON.parse(line.substring(7));
+            const payload = JSON.parse(line.slice("TYPING:".length));
             await sock.sendPresenceUpdate(payload.action, payload.to);
         } else if (line.startsWith("SEND:")) {
-            const payload = JSON.parse(line.substring(5));
-            await sock.sendMessage(payload.to, { text: payload.text });
+            const payload = JSON.parse(line.slice("SEND:".length));
+            try {
+                await sock.sendMessage(payload.to, { text: payload.text });
+                console.log("JSON_EVENT:" + JSON.stringify({ type: "msg_sent" }));
+            } catch (err) {
+                console.log("JSON_EVENT:" + JSON.stringify({ type: "msg_error", error: err.message }));
+            }
         } else if (line.startsWith("SEND_FILE:")) {
-            const payload = JSON.parse(line.substring(10));
+            const payload = JSON.parse(line.slice("SEND_FILE:".length));
             const filePath = payload.path;
+            const fileName = path.basename(filePath);
             console.log(`    [*] Bridge: Attempting to send file: ${filePath}`);
             if (fs.existsSync(filePath)) {
-                const fileName = path.basename(filePath);
                 const ext = path.extname(filePath).toLowerCase();
 
                 const mimeMap = {
@@ -223,11 +230,14 @@ readline.createInterface({ input: process.stdin }).on("line", async (line) => {
                         mimetype: mimetype
                     });
                     console.log(`    [✓] Bridge: File sent successfully: ${fileName}`);
+                    console.log("JSON_EVENT:" + JSON.stringify({ type: "file_sent", filename: fileName }));
                 } catch (err) {
                     console.log(`    [!] Bridge: Error sending file: ${err.message}`);
+                    console.log("JSON_EVENT:" + JSON.stringify({ type: "file_error", filename: fileName, error: err.message }));
                 }
             } else {
                 console.log(`    [!] Bridge: File not found: ${filePath}`);
+                console.log("JSON_EVENT:" + JSON.stringify({ type: "file_error", filename: fileName, error: "File not found" }));
             }
         }
     } catch (e) {
