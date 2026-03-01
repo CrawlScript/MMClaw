@@ -13,9 +13,11 @@ class ShellTool(object):
                 capture_output=True,
                 # timeout=30
             )
-            encoding = locale.getpreferredencoding(False)
             output = result.stdout if result.returncode == 0 else result.stderr
-            output = output.decode(encoding, errors='replace')
+            try:
+                output = output.decode('utf-8')
+            except UnicodeDecodeError:
+                output = output.decode(locale.getpreferredencoding(False), errors='replace')
             return f"Return Code {result.returncode}:\n{output}"
         except Exception as e:
             return f"Error executing command: {str(e)}"
