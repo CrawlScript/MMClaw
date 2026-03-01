@@ -1,5 +1,6 @@
 import subprocess
 import os
+import locale
 
 class ShellTool(object):
     @staticmethod
@@ -7,13 +8,14 @@ class ShellTool(object):
         """Executes a shell command and returns the output."""
         try:
             result = subprocess.run(
-                command, 
-                shell=True, 
-                capture_output=True, 
-                encoding='utf-8', 
+                command,
+                shell=True,
+                capture_output=True,
                 # timeout=30
             )
+            encoding = locale.getpreferredencoding(False)
             output = result.stdout if result.returncode == 0 else result.stderr
+            output = output.decode(encoding, errors='replace')
             return f"Return Code {result.returncode}:\n{output}"
         except Exception as e:
             return f"Error executing command: {str(e)}"

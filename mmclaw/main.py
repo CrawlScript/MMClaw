@@ -230,7 +230,7 @@ def run_setup(existing_config=None):
             print('[*] 第二步：在"添加应用能力"中，点击机器人下方的"添加"按钮。')
             input("    完成后请按回车键 continue...")
 
-            print("[*] 第三步：获取并输入以下信息：")
+            print("[*] 第三步：在\"凭证与基础信息\"页面，获取并输入以下信息：")
             config["connectors"]["feishu"]["app_id"] = ask("App ID", "app_id", None, nested_connector="feishu")
             config["connectors"]["feishu"]["app_secret"] = ask("App Secret", "app_secret", None, nested_connector="feishu")
 
