@@ -16,15 +16,12 @@ class SkillManager(object):
         """Copy skill directories from package to ~/.mmclaw/skills."""
         if not cls.HOME_SKILLS_DIR.exists():
             cls.HOME_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
-
         if cls.PKG_SKILLS_DIR.exists():
             for skill_dir in cls.PKG_SKILLS_DIR.iterdir():
                 if not skill_dir.is_dir():
                     continue
                 dest = cls.HOME_SKILLS_DIR / skill_dir.name
-                # Only copy if it doesn't exist to avoid overwriting user changes or causing unnecessary mtime updates
-                if not dest.exists():
-                    shutil.copytree(skill_dir, dest)
+                shutil.copytree(skill_dir, dest, dirs_exist_ok=True)
 
     @classmethod
     def _parse_frontmatter(cls, text):

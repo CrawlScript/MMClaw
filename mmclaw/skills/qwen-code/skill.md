@@ -2,7 +2,7 @@
 name: qwen-code
 description: Run Qwen Code CLI to execute AI-powered coding tasks in a local repo. Use when the user wants to ask Qwen to write, edit, refactor, or explain code in their project.
 metadata:
-  { "emoji": "🧠", "os": ["linux", "darwin", "win32"], "requires": { "bins": ["qwen"] } }
+  { "mmclaw": { "emoji": "🧠", "os": ["linux", "darwin", "win32"], "requires": { "bins": ["qwen"] } } }
 ---
 
 # Qwen Code Skill

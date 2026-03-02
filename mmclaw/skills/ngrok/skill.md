@@ -2,7 +2,7 @@
 name: ngrok
 description: Expose a local port to the public internet using ngrok. Use when the user wants a public URL for a locally running web service.
 metadata:
-  { "openclaw": { "emoji": "🌐", "os": ["linux", "darwin", "win32"], "requires": { "bins": ["python3"] } } }
+  { "mmclaw": { "emoji": "🌐", "os": ["linux", "darwin", "win32"], "requires": { "bins": ["python3"] } } }
 ---
 
 # ngrok Skill (MMClaw)
