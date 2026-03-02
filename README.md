@@ -35,6 +35,7 @@ Control your AI agent from anywhere, through the apps you already use.
 - **Chat & Automate** — Send messages via Telegram, WhatsApp, Feishu (飞书), or QQ Bot (QQ机器人) to ask questions, run commands, manage files, or delegate complex multi-step tasks to your agent.
 - **Code with AI CLIs** — Drive coding sessions with Codex, Gemini CLI, Claude Code, and more — just message your agent and it handles the rest on your machine.
 - **Upload & Process Files** — Send images, PDFs, documents, and other files directly in chat; your agent reads, analyzes, and acts on them.
+- **Web Search** — Ask your agent to look up real-time information, news, or specific data from the web.
 - **Custom Skills** — Extend your agent with your own skills; teach it new commands, workflows, and domain knowledge to do exactly what you need.
 - **Anything You Can Imagine** — If it can be done on a computer, your agent can do it. The only limit is your imagination.
 
@@ -45,6 +46,7 @@ Control your AI agent from anywhere, through the apps you already use.
 * Minimalist & Readable: A "Batteries-Included" architecture designed to be a living tutorial. Learn how to build an OpenClaw-style agent by reading code, not documentation.
 * Highly Customizable Kernel: Designed as a core engine, not a rigid app. Easily plug in your own logic, state management, and custom tools.
 * Universal Cross-Platform: Runs seamlessly on Windows, macOS, Linux, and minimalist environments like Raspberry Pi.
+* Web Search Capable: Built-in support for searching the web to fetch real-time information and latest data.
 * Multi-Channel Interaction: Built-in support for interacting with your agent via Telegram, WhatsApp, Feishu (飞书), QQ Bot (QQ机器人), and more—all handled through pure Python integrations.
 
 ## 🚀 Quick Start
