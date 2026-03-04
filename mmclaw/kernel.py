@@ -3,7 +3,7 @@ import queue
 import json
 import re
 from .providers import Engine
-from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool
+from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool
 from .memory import InMemoryMemory, FileMemory
 
 class MMClaw(object):
@@ -104,6 +104,10 @@ class MMClaw(object):
                             result = "Success: Session history cleared."
                             # Break inner loop to start with fresh memory on next user input
                             break
+                        elif name == "upgrade":
+                            self.connector.send("⬆️ Upgrading MMClaw...")
+                            result = UpgradeTool.upgrade()  # restarts process on success; only returns on failure
+                            self.connector.send(f"❌ Upgrade failed: {result}")
 
                         if self.debug:
                             print(f"\n    [Tool Output: {name}]\n    {result}\n")

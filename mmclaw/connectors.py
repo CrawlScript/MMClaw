@@ -202,8 +202,11 @@ class FeishuConnector(object):
         )
         self.ws_client.start()
 
-    def start_typing(self): pass
-    def stop_typing(self): pass
+    def start_typing(self):
+        self.send("⏳")
+
+    def stop_typing(self):
+        self.send("✅")
 
     def send(self, message):
         from lark_oapi.api.im.v1 import ReplyMessageRequest, ReplyMessageRequestBody

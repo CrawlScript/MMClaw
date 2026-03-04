@@ -3,6 +3,8 @@ import os
 import locale
 
 class ShellTool(object):
+    TIMEOUT = 60
+
     @staticmethod
     def execute(command):
         """Executes a shell command and returns the output."""
@@ -11,7 +13,7 @@ class ShellTool(object):
                 command,
                 shell=True,
                 capture_output=True,
-                # timeout=30
+                timeout=ShellTool.TIMEOUT
             )
             output = result.stdout if result.returncode == 0 else result.stderr
             try:
@@ -80,3 +82,25 @@ class SessionTool(object):
     def reset():
         """Returns a signal string that the kernel will use to reset the session."""
         return "SESSION_RESET_SIGNAL"
+
+class UpgradeTool(object):
+    @staticmethod
+    def upgrade():
+        """Upgrades mmclaw via pip, then restarts the current process in-place."""
+        import sys
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-U", "mmclaw"],
+                capture_output=True,
+                timeout=120
+            )
+            output = result.stdout + result.stderr
+            try:
+                output = output.decode('utf-8')
+            except UnicodeDecodeError:
+                output = output.decode(locale.getpreferredencoding(False), errors='replace')
+            if result.returncode != 0:
+                return f"Upgrade failed:\n{output}"
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception as e:
+            return f"Upgrade error: {str(e)}"
