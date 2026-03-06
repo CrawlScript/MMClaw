@@ -162,10 +162,7 @@ class FeishuConnector(object):
                         return
 
                     file_bytes = response.file.read()
-                    tmp_dir = tempfile.mkdtemp(prefix="mmclaw_")
-                    file_path = os.path.join(tmp_dir, file_name)
-                    with open(file_path, 'wb') as f:
-                        f.write(file_bytes)
+                    file_path = self.file_saver(file_name, file_bytes)
 
                     content = f"[Uploaded file: {file_path}]"
                     print(f"📩 Feishu: [File] {file_name}")
@@ -216,7 +213,7 @@ class FeishuConnector(object):
         limit = 4000
         chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
         for chunk in chunks:
-            reply_body = json.dumps({"text": chunk})
+            reply_body = json.dumps({"text": f"⚡ {chunk}"})
             request = ReplyMessageRequest.builder() \
                 .message_id(self.last_message_id) \
                 .request_body(ReplyMessageRequestBody.builder() \
@@ -326,10 +323,7 @@ class TelegramConnector(object):
                     file_info = self.bot.get_file(doc.file_id)
                     downloaded_file = self.bot.download_file(file_info.file_path)
 
-                    tmp_dir = tempfile.mkdtemp(prefix="mmclaw_")
-                    file_path = os.path.join(tmp_dir, doc.file_name)
-                    with open(file_path, 'wb') as f:
-                        f.write(downloaded_file)
+                    file_path = self.file_saver(doc.file_name, downloaded_file)
 
                     content = f"[Uploaded file: {file_path}]"
                     if text:
@@ -549,10 +543,7 @@ class WhatsAppConnector(object):
 
                             try:
                                 file_bytes = base64.b64decode(b64_data)
-                                tmp_dir = tempfile.mkdtemp(prefix="mmclaw_")
-                                file_path = os.path.join(tmp_dir, filename)
-                                with open(file_path, 'wb') as f:
-                                    f.write(file_bytes)
+                                file_path = self.file_saver(filename, file_bytes)
 
                                 content = f"[Uploaded file: {file_path}]"
                                 if caption:
@@ -636,7 +627,7 @@ class WhatsAppConnector(object):
         chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
         for chunk in chunks:
             self.last_sent_text = chunk
-            payload = {"to": recipient, "text": chunk}
+            payload = {"to": recipient, "text": f"⚡ {chunk}"}
             try:
                 with self._wa_send():
                     self._write_stdin(f"SEND:{json.dumps(payload)}\n")
@@ -742,7 +733,7 @@ class QQBotConnector(object):
         limit = 4000
         chunks = [message[i:i+limit] for i in range(0, len(message), limit)]
         for chunk in chunks:
-            future = asyncio.run_coroutine_threadsafe(self._send_async(chunk), self._loop)
+            future = asyncio.run_coroutine_threadsafe(self._send_async(f"⚡ {chunk}"), self._loop)
             try:
                 future.result(timeout=30)
             except Exception as e:

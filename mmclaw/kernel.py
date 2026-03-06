@@ -4,14 +4,14 @@ import json
 import re
 from .providers import Engine
 from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool
-from .memory import InMemoryMemory, FileMemory
+from .memory import FileMemory
 
 class MMClaw(object):
     def __init__(self, config, connector, system_prompt):
         self.engine = Engine(config)
         self.connector = connector
-        memory_type = config.get("memory_type", "file")
-        self.memory = FileMemory(system_prompt) if memory_type == "file" else InMemoryMemory(system_prompt)
+        self.memory = FileMemory(system_prompt)
+        self.connector.file_saver = self.memory.save_file
         self.task_queue = queue.Queue()
         self.debug = config.get("debug", False)
         
@@ -40,16 +40,14 @@ class MMClaw(object):
             if user_text is None: break
             
             self.memory.add("user", user_text)
-            
+
             self.connector.start_typing()
             try:
                 while True:
                     # Refresh system prompt before every call to pick up new skills or context changes
                     from .config import ConfigManager
                     new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
-                    self.memory.system_prompt = new_prompt
-                    if self.memory.history and self.memory.history[0]["role"] == "system":
-                        self.memory.history[0]["content"] = new_prompt
+                    self.memory.update_system_prompt(new_prompt)
 
                     response_msg = self.engine.ask(self.memory.get_all())
                     raw_text = response_msg.get("content", "")
