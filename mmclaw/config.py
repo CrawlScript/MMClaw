@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 import platform
 from .tools import ShellTool
+from .memory import MAX_MEMORY_ENTRY_CHARS, MAX_TOTAL_MEMORY_CHARS
 
 class SkillManager(object):
     HOME_SKILLS_DIR = Path.home() / ".mmclaw" / "skills"
@@ -130,7 +131,10 @@ class ConfigManager(object):
         "- file_upload(path)\n"
         "- wait(seconds)\n"
         "- reset_session() Use this when the user asks for a 'new session', 'fresh start', or to 'clear history'.\n"
-        "- upgrade() Upgrades MMClaw to the latest version via pip and restarts the process. Use when the user asks to upgrade or update MMClaw.\n\n"
+        "- upgrade() Upgrades MMClaw to the latest version via pip and restarts the process. Use when the user asks to upgrade or update MMClaw.\n"
+        f"- memory_add(memory): Saves a fact to global memory (persisted across all sessions). Max {MAX_MEMORY_ENTRY_CHARS} chars per entry, {MAX_TOTAL_MEMORY_CHARS} chars total. Keep each memory as short as possible while preserving the key information — prefer dense, keyword-style facts over full sentences.\n"
+        "- memory_list(): Lists all global memories with their indices.\n"
+        "- memory_delete(index): Deletes a global memory by index.\n\n"
         "IMPORTANT: For long-running or blocking commands (e.g. starting a server, running ngrok, or any process "
         "that does not exit on its own), you MUST use 'shell_async'. "
         "Using 'shell_execute' for these will cause the agent to hang.\n\n"

@@ -102,6 +102,15 @@ class MMClaw(object):
                             result = "Success: Session history cleared."
                             # Break inner loop to start with fresh memory on next user input
                             break
+                        elif name == "memory_add":
+                            self.connector.send(f"🧠 Memorize: `{args.get('memory', '')}`")
+                            result = self.memory.global_memory_add(args.get("memory", ""))
+                        elif name == "memory_list":
+                            self.connector.send("🧠 Listing global memories...")
+                            result = self.memory.global_memory_list()
+                        elif name == "memory_delete":
+                            self.connector.send(f"🧠 Delete memory [{args.get('index')}]")
+                            result = self.memory.global_memory_delete(int(args.get("index", -1)))
                         elif name == "upgrade":
                             self.connector.send("⬆️ Upgrading MMClaw... (this is tricky — there's no notification when it's done. Please wait a moment, then ask me for my version number to confirm the upgrade succeeded.)")
                             result = UpgradeTool.upgrade()  # restarts process on success; only returns on failure
