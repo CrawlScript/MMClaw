@@ -175,11 +175,6 @@ class ConfigManager(object):
                 "api_key": None,
                 "base_url": "https://api.moonshot.cn/v1"
             },
-            "openai_compatible": {
-                "model": "llama3",
-                "api_key": None,
-                "base_url": "http://localhost:11434/v1"
-            },
             "google": {
                 "model": "gemini-1.5-pro",
                 "api_key": None,
@@ -252,6 +247,21 @@ class ConfigManager(object):
                 
                 for key in ["model", "api_key", "base_url"]:
                     if key in config: del config[key]
+                needs_save = True
+
+            # Migration: openai_compatible (old format) → openai_compatible_default
+            if "engines" in config and "openai_compatible" in config["engines"]:
+                oc = config["engines"]["openai_compatible"]
+                if oc.get("api_key"):
+                    print("[*] Migrating 'openai_compatible' → 'openai_compatible_default'...")
+                    config["engines"]["openai_compatible_default"] = oc
+                    if config.get("engine_type") == "openai_compatible":
+                        config["engine_type"] = "openai_compatible_default"
+                else:
+                    print("[*] Removing empty 'openai_compatible' engine...")
+                    if config.get("engine_type") == "openai_compatible":
+                        config["engine_type"] = "openai"
+                del config["engines"]["openai_compatible"]
                 needs_save = True
 
             # Migration: Fix Google Base URL (add /openai if missing)

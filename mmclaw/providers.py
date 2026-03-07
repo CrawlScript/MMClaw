@@ -105,7 +105,7 @@ class Engine(object):
             return False
 
     def ask(self, messages, tools=None):
-        if self.engine_type in ["openai", "codex", "google", "deepseek", "openrouter", "kimi", "openai_compatible"]:
+        if self.engine_type in ["openai", "codex", "google", "deepseek", "openrouter", "kimi"] or self.engine_type.startswith("openai_compatible_"):
             if self.engine_type == "codex":
                 # Responses API (Codex)
                 system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
