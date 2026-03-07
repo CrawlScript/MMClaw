@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.52",
+    version="0.0.53",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
@@ -38,6 +38,7 @@ setup(
         "all": [
             "lark-oapi == 1.5.3",
             "pdfplumber>=0.11.0",
+            "playwright==1.58.0",
         ],
     },
     

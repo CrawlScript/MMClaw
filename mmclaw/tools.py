@@ -83,6 +83,175 @@ class SessionTool(object):
         """Returns a signal string that the kernel will use to reset the session."""
         return "SESSION_RESET_SIGNAL"
 
+class BrowserTool(object):
+    import tempfile as _tempfile
+    _tmp = _tempfile.gettempdir()
+    CDP_URL = "http://localhost:9222"
+    WS_FILE = f"{_tmp}/mmclaw_browser_ws.txt"
+    DAEMON_SCRIPT = f"{_tmp}/mmclaw_browser_daemon.py"
+    DAEMON_LOG = f"{_tmp}/mmclaw_browser_daemon.log"
+    DEFAULT_SCREENSHOT = f"{_tmp}/mmclaw_browser_screenshot.png"
+    DEFAULT_DATA_DIR = "~/.mmclaw/browser_data"
+    _daemon_process = None
+
+    @classmethod
+    def _is_running(cls):
+        import urllib.request
+        try:
+            urllib.request.urlopen(f"{cls.CDP_URL}/json/version", timeout=2)
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def _get_page(cls, pw):
+        browser = pw.chromium.connect_over_cdp(cls.CDP_URL)
+        if not browser.contexts:
+            raise RuntimeError("No browser context found. Call browser_start first.")
+        ctx = browser.contexts[0]  # always the persistent context from launch_persistent_context
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        return browser, page
+
+    @classmethod
+    def start(cls, user_data_dir=None):
+        if cls._is_running():
+            return "Browser already running."
+        import subprocess, sys, time, os, textwrap
+        data_dir = os.path.join(os.path.expanduser(user_data_dir or cls.DEFAULT_DATA_DIR), "chromium")
+        os.makedirs(data_dir, exist_ok=True)
+        daemon_code = textwrap.dedent(f"""\
+            from playwright.sync_api import sync_playwright
+            import os, time, json
+            WS_FILE = {repr(cls.WS_FILE)}
+            DATA_DIR = {repr(data_dir)}
+
+            # Patch Chrome Preferences to suppress "Restore pages?" dialog.
+            # Chrome shows it when exit_type != "Normal" (i.e. it thinks it crashed).
+            prefs_path = os.path.join(DATA_DIR, "Default", "Preferences")
+            if os.path.exists(prefs_path):
+                try:
+                    prefs = json.loads(open(prefs_path).read())
+                    prefs.setdefault("profile", {{}})["exit_type"] = "Normal"
+                    prefs.setdefault("profile", {{}})["crashed"] = False
+                    open(prefs_path, "w").write(json.dumps(prefs))
+                except Exception:
+                    pass
+
+            try:
+                with sync_playwright() as pw:
+                    context = pw.chromium.launch_persistent_context(
+                        DATA_DIR,
+                        headless=False,
+                        args=["--remote-debugging-port=9222", "--no-first-run", "--no-default-browser-check"],
+                    )
+                    open(WS_FILE, "w").write("http://localhost:9222")
+                    print("Browser ready.", flush=True)
+                    while os.path.exists(WS_FILE):
+                        time.sleep(1)
+                    context.close()
+                print("Browser stopped.", flush=True)
+            except Exception as e:
+                print(f"ERROR: {{e}}", flush=True)
+                raise
+        """)
+        with open(cls.DAEMON_SCRIPT, "w") as f:
+            f.write(daemon_code)
+        cls._daemon_process = subprocess.Popen(
+            [sys.executable, cls.DAEMON_SCRIPT],
+            stdout=open(cls.DAEMON_LOG, "w"), stderr=subprocess.STDOUT
+        )
+        log_pos = 0
+        for _ in range(60):  # up to 30s — first launch after fresh install can be slow
+            time.sleep(0.5)
+            if os.path.exists(cls.DAEMON_LOG):
+                with open(cls.DAEMON_LOG) as f:
+                    f.seek(log_pos)
+                    chunk = f.read()
+                    if chunk:
+                        print(chunk, end='', flush=True)
+                        log_pos = f.tell()
+            if cls._is_running():
+                return "OK: Browser started."
+        log = open(cls.DAEMON_LOG).read() if os.path.exists(cls.DAEMON_LOG) else "(no log)"
+        return f"ERROR: Browser did not start within 30s.\n{log}"
+
+    @classmethod
+    def stop(cls):
+        import os, time
+        if not cls._is_running():
+            if os.path.exists(cls.WS_FILE):
+                os.remove(cls.WS_FILE)
+            return "Browser is not running."
+        if os.path.exists(cls.WS_FILE):
+            os.remove(cls.WS_FILE)
+        time.sleep(2)
+        return "OK: Browser stopped."
+
+    @classmethod
+    def navigate(cls, url):
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                browser, page = cls._get_page(pw)
+                page.goto(url, wait_until="domcontentloaded")
+                result = f"Title: {page.title()}\nURL: {page.url}"
+
+            return result
+        except Exception as e:
+            return f"ERROR: {e}"
+
+    @classmethod
+    def click(cls, selector):
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                browser, page = cls._get_page(pw)
+                page.locator(selector).first.click()
+                page.wait_for_load_state("domcontentloaded")
+                result = f"Clicked. Title: {page.title()}\nURL: {page.url}"
+
+            return result
+        except Exception as e:
+            return f"ERROR: {e}"
+
+    @classmethod
+    def fill(cls, selector, text):
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                browser, page = cls._get_page(pw)
+                page.locator(selector).fill(text)
+
+            return "OK: filled."
+        except Exception as e:
+            return f"ERROR: {e}"
+
+    @classmethod
+    def get_text(cls, selector=None):
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                browser, page = cls._get_page(pw)
+                text = page.locator(selector).first.inner_text() if selector else page.inner_text("body")
+
+            return text
+        except Exception as e:
+            return f"ERROR: {e}"
+
+    @classmethod
+    def screenshot(cls, path=None):
+        try:
+            from playwright.sync_api import sync_playwright
+            save_path = path or cls.DEFAULT_SCREENSHOT
+            with sync_playwright() as pw:
+                browser, page = cls._get_page(pw)
+                page.screenshot(path=save_path, full_page=True)
+
+            return f"OK: {save_path}"
+        except Exception as e:
+            return f"ERROR: {e}"
+
+
 class UpgradeTool(object):
     @staticmethod
     def upgrade():

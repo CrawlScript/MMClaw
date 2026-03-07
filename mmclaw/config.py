@@ -145,6 +145,10 @@ class ConfigManager(object):
 
     DEFAULT_CONFIG = {
         "engine_type": "openai",
+        "browser": {
+            "enabled": False,
+            "data_dir": "~/.mmclaw/browser_data",
+        },
         "engines": {
             "openai": {
                 "model": "gpt-4o",
@@ -300,12 +304,15 @@ class ConfigManager(object):
         print(f"[*] Config saved to {cls.CONFIG_FILE}")
 
     @classmethod
-    def get_full_prompt(cls, mode="terminal"):
+    def get_full_prompt(cls, mode="terminal", config=None):
         """Combine base prompt with skills and interface context.
-        
-        Note: sync_skills should be called once at startup, not here, 
+
+        Note: sync_skills should be called once at startup, not here,
         to allow for fast frequent refreshes of the prompt index.
         """
+        if config is None:
+            config = cls.load() or {}
+
         interface_context = f"\n\n[INTERFACE CONTEXT]\nYou are currently responding via: {mode.upper()}\n"
         if mode == "telegram":
             interface_context += (
@@ -323,12 +330,31 @@ class ConfigManager(object):
                 "for lists (e.g., - or *) and tables. Avoid complex markdown that doesn't render in a shell.\n"
             )
 
+        browser_enabled = config.get("browser", {}).get("enabled", False)
+        browser_context = (
+            "\n\n[BROWSER]\n"
+            "Status: ENABLED — use the browser tools below for all browser tasks. Do not use the browser skill or shell scripts for browser operations.\n"
+            "Browser Tools:\n"
+            "- browser_start(): Start the browser. Must be called before any other browser tool.\n"
+            "- browser_stop(): Close the browser gracefully.\n"
+            "- browser_navigate(url): Navigate to a URL. Returns page title and URL.\n"
+            "- browser_click(selector): Click an element by CSS selector. Returns new title and URL.\n"
+            "- browser_fill(selector, text): Type text into an input field.\n"
+            "- browser_get_text(selector?): Get text from the page. Omit selector for full body text.\n"
+            "- browser_screenshot(path?): Take a screenshot. Only call this when the user explicitly asks for a screenshot. Never call it proactively.\n"
+            if browser_enabled else
+            "\n\n[BROWSER]\n"
+            "Status: DISABLED — do not use any browser tools or the browser skill, even if the user asks. "
+            "Inform the user that browser support is not enabled and they can enable it by running 'mmclaw config'.\n"
+        )
+
         os_context = (
             f"\n\n[SYSTEM ENVIRONMENT]\n"
             f"Operating System: {platform.platform()}\n"
             "IMPORTANT: When generating shell commands, always use syntax compatible with the above OS.\n"
+            "IMPORTANT: When running Python scripts, use 'python' — never 'python3' or '/usr/bin/python'.\n"
         )
 
         # print("================\n" + os_context)
 
-        return cls.BASE_SYSTEM_PROMPT + os_context + interface_context + SkillManager.get_skills_prompt()
+        return cls.BASE_SYSTEM_PROMPT + os_context + browser_context + interface_context + SkillManager.get_skills_prompt()

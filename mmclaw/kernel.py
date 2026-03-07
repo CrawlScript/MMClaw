@@ -4,11 +4,12 @@ import queue
 import json
 import re
 from .providers import Engine
-from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool
+from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool, BrowserTool
 from .memory import FileMemory
 
 class MMClaw(object):
     def __init__(self, config, connector, system_prompt):
+        self.config = config
         self.engine = Engine(config)
         self.connector = connector
         self.memory = FileMemory(system_prompt)
@@ -76,6 +77,7 @@ class MMClaw(object):
                     if not tools:
                         break
 
+                    session_reset = False
                     for tool in tools:
                         name = tool.get("name")
                         args = tool.get("args", {})
@@ -109,7 +111,7 @@ class MMClaw(object):
                             self.memory.reset()
                             self.connector.send("✨ Session reset! Starting fresh.")
                             result = "Success: Session history cleared."
-                            # Break inner loop to start with fresh memory on next user input
+                            session_reset = True
                             break
                         elif name == "memory_add":
                             self.connector.send(f"🧠 Memorize: `{args.get('memory', '')}`")
@@ -125,6 +127,30 @@ class MMClaw(object):
                                 indices = int(indices)
                             self.connector.send(f"🧠 Delete memory {indices}")
                             result = self.memory.global_memory_delete(indices)
+                        elif name == "browser_start":
+                            self.connector.send("🌐 Starting browser...")
+                            user_data_dir = self.config.get("browser", {}).get("data_dir")
+                            result = BrowserTool.start(user_data_dir=user_data_dir)
+                        elif name == "browser_stop":
+                            self.connector.send("🌐 Stopping browser...")
+                            result = BrowserTool.stop()
+                        elif name == "browser_navigate":
+                            self.connector.send(f"🌐 Navigate: `{args.get('url')}`")
+                            result = BrowserTool.navigate(args.get("url"))
+                        elif name == "browser_click":
+                            self.connector.send(f"🌐 Click: `{args.get('selector')}`")
+                            result = BrowserTool.click(args.get("selector"))
+                        elif name == "browser_fill":
+                            self.connector.send(f"🌐 Fill: `{args.get('selector')}`")
+                            result = BrowserTool.fill(args.get("selector"), args.get("text", ""))
+                        elif name == "browser_get_text":
+                            self.connector.send(f"🌐 Get text: `{args.get('selector', 'body')}`")
+                            result = BrowserTool.get_text(args.get("selector"))
+                        elif name == "browser_screenshot":
+                            self.connector.send("🌐 Screenshot...")
+                            result = BrowserTool.screenshot(args.get("path"))
+                            if result.startswith("OK:"):
+                                self.connector.send_file(result[4:].strip())
                         elif name == "upgrade":
                             self.connector.send("⬆️ Upgrading MMClaw... (this is tricky — there's no notification when it's done. Please wait a moment, then ask me for my version number to confirm the upgrade succeeded.)")
                             result = UpgradeTool.upgrade()  # restarts process on success; only returns on failure
@@ -134,6 +160,9 @@ class MMClaw(object):
                             print(f"\n    [Tool Output: {name}]\n    {result}\n")
                         # self.memory.add("system", f"Tool Output ({name}):\n{result}")
                         self.memory.add("user", f"Tool Output ({name}):\n{result}")
+
+                    if session_reset:
+                        break
 
             except Exception as e:
                 print(f"[!] Worker error: {e}")
