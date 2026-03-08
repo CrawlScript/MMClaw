@@ -68,7 +68,7 @@ mmclaw run
 如需使用**飞书 (Feishu)** 连接器，请使用 `[all]` 选项安装，以包含所需的 `lark-oapi` 依赖：
 
 ```bash
-pip install mmclaw[all]
+pip install "mmclaw[all]"
 ```
 
 ## 🛠 开发理念
