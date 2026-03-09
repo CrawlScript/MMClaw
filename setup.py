@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.54",
+    version="0.0.55",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",
@@ -15,7 +15,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        "mmclaw": ["skills/**/*", "bridge.js"],
+        "mmclaw": ["skills/**/*", "bridge.js", "skill-kg/*"],
     },
     
     entry_points={
@@ -36,9 +36,9 @@ setup(
     ],
     extras_require={
         "all": [
-            "lark-oapi == 1.5.3",
+            "lark-oapi==1.5.3",
             "pdfplumber>=0.11.0",
-            "playwright==1.58.0",
+            # "playwright==1.58.0",
         ],
     },
     

@@ -7,16 +7,22 @@ from .tools import ShellTool
 from .memory import MAX_MEMORY_ENTRY_CHARS, MAX_TOTAL_MEMORY_CHARS
 
 class SkillManager(object):
+    HOME_DIR = Path.home() / ".mmclaw"
     HOME_SKILLS_DIR = Path.home() / ".mmclaw" / "skills"
     PKG_SKILLS_DIR = Path(__file__).parent / "skills"
-    
+    PKG_KG_DIR = Path(__file__).parent / "skill-kg"
+    HOME_KG_DIR = Path.home() / ".mmclaw" / "skill-kg"
+    HOME_KG_MAIN = Path.home() / ".mmclaw" / "skill-kg" / "skill-kg-main.md"
+    HOME_KG_USER = Path.home() / ".mmclaw" / "skill-kg" / "skill-kg-user.md"
+
     _cache_prompt = None
     _cache_mtime = 0
 
     @classmethod
     def sync_skills(cls):
-        """Copy skill directories from package to ~/.mmclaw/skills."""
-        if not cls.HOME_SKILLS_DIR.exists():
+        """Copy skill directories and KG files from package to ~/.mmclaw/."""
+        cls.HOME_DIR.mkdir(parents=True, exist_ok=True)
+        if cls.HOME_SKILLS_DIR.exists() is False:
             cls.HOME_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
         if cls.PKG_SKILLS_DIR.exists():
             for skill_dir in cls.PKG_SKILLS_DIR.iterdir():
@@ -24,6 +30,57 @@ class SkillManager(object):
                     continue
                 dest = cls.HOME_SKILLS_DIR / skill_dir.name
                 shutil.copytree(skill_dir, dest, dirs_exist_ok=True)
+
+        # Sync KG dir (always overwrite main, never touch user file)
+        cls.HOME_KG_DIR.mkdir(parents=True, exist_ok=True)
+        if cls.PKG_KG_DIR.exists():
+            shutil.copy2(cls.PKG_KG_DIR / "skill-kg-main.md", cls.HOME_KG_MAIN)
+
+        # Create user KG file only if it doesn't exist yet
+        if not cls.HOME_KG_USER.exists():
+            cls.HOME_KG_USER.write_text(
+                "# MM-SkillKG — User Custom Relations\n"
+                "# Add your own relations here. This file is never overwritten by mmclaw updates.\n"
+                "# Format: entity_a, [relation], entity_b  # optional comment\n\n",
+                encoding="utf-8"
+            )
+
+    @classmethod
+    def _parse_kg_file(cls, path):
+        """Parse a .md KG file into a list of (a, relation, b, comment) tuples."""
+        triples = []
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                comment = ""
+                if "#" in line:
+                    line, _, comment = line.partition("#")
+                    comment = comment.strip()
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) != 3:
+                    continue
+                a, rel, b = parts
+                rel = rel.strip("[]")
+                if a and rel and b:
+                    triples.append((a, rel, b, comment))
+        except Exception:
+            pass
+        return triples
+
+    @classmethod
+    def get_skill_kg_prompt(cls):
+        """Load and merge main + user KG files into a prompt section."""
+        triples = cls._parse_kg_file(cls.HOME_KG_MAIN) + cls._parse_kg_file(cls.HOME_KG_USER)
+        if not triples:
+            return ""
+        lines = [f"- {a} [{rel}] {b}" + (f"  # {c}" if c else "") for a, rel, b, c in triples]
+        return (
+            "\n\n[SKILL KNOWLEDGE GRAPH]\n"
+            "These are known relations between skills and concepts. "
+            "Use them to reason about dependencies and safety before activating a skill.\n\n"
+        ) + "\n".join(lines) + "\n"
 
     @classmethod
     def _parse_frontmatter(cls, text):
@@ -367,4 +424,4 @@ class ConfigManager(object):
 
         # print("================\n" + os_context)
 
-        return cls.BASE_SYSTEM_PROMPT + os_context + browser_context + interface_context + SkillManager.get_skills_prompt()
+        return cls.BASE_SYSTEM_PROMPT + os_context + browser_context + interface_context + SkillManager.get_skills_prompt() + SkillManager.get_skill_kg_prompt()
