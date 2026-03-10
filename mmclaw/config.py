@@ -197,7 +197,15 @@ class ConfigManager(object):
         "that does not exit on its own), you MUST use 'shell_async'. "
         "Using 'shell_execute' for these will cause the agent to hang.\n\n"
         "IMPORTANT: When creating files and no destination path is specified by the user, always write to the "
-        "system temp directory. The agent's working directory is an internal path with no meaning to the user."
+        "system temp directory. The agent's working directory is an internal path with no meaning to the user.\n\n"
+        "[HEARTBEAT MESSAGES]\n"
+        "If a message starts with [HEARTBEAT: skill_name], it is a scheduled system trigger — not from the user. "
+        "Follow the instructions inside the message. "
+        "Only set a non-empty \"content\" in the FINAL response if there is something worth reporting to the user. "
+        "If nothing to report, set \"content\" to \"\". Do not mention the heartbeat mechanism to the user.\n"
+        "If a message starts with [HEARTBEAT_DISCOVER: skill_name], a new skill with a heartbeat was found. "
+        "Read the instructions, choose a sensible interval_seconds (minimum 10), update the heartbeat-config.json file. "
+        "Set \"content\" to \"\" in every response. Do NOT send any message to the user."
     )
 
     DEFAULT_CONFIG = {

@@ -3,9 +3,170 @@ import traceback
 import queue
 import json
 import re
+import time
+from datetime import datetime, timezone
+from pathlib import Path
 from .providers import Engine
 from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool, BrowserTool
 from .memory import FileMemory
+
+
+class HeartbeatManager:
+    HEARTBEAT_DIR = Path.home() / ".mmclaw" / "heartbeat"
+    CONFIG_FILE   = Path.home() / ".mmclaw" / "heartbeat" / "heartbeat-config.json"
+    LOG_FILE      = Path.home() / ".mmclaw" / "heartbeat" / "heartbeat-log.jsonl"
+    SKILLS_DIR    = Path.home() / ".mmclaw" / "skills"
+
+    def __init__(self, task_queue: queue.Queue, connector):
+        self.task_queue = task_queue
+        self.connector  = connector
+        self._running   = set()  # skill names with active threads
+
+    def start(self):
+        self.HEARTBEAT_DIR.mkdir(parents=True, exist_ok=True)
+
+        cfg = self._load_config()
+        for skill_name, opts in cfg.items():
+            self._start_skill(skill_name, opts)
+
+        # Queue discovery messages for skills not yet in config
+        self._queue_discoveries(cfg)
+
+        # Watch config for new entries written by the AI
+        threading.Thread(target=self._watch_config, daemon=True).start()
+
+    def _load_config(self) -> dict:
+        if not self.CONFIG_FILE.exists():
+            return {}
+        try:
+            return json.loads(self.CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"[!] HeartbeatManager: failed to load config: {e}")
+            return {}
+
+    def _start_skill(self, skill_name: str, opts: dict):
+        if skill_name in self._running:
+            return
+        if not opts.get("enabled", True):
+            return
+        interval_seconds = max(10, int(opts.get("interval_seconds", 1800)))
+        heartbeat_file = self.SKILLS_DIR / skill_name / "heartbeat.md"
+        if not heartbeat_file.exists():
+            print(f"[!] HeartbeatManager: no heartbeat.md for '{skill_name}', skipping.")
+            return
+        is_new = self._last_run(skill_name) is None
+        threading.Thread(
+            target=self._run,
+            args=(skill_name, heartbeat_file, interval_seconds, is_new),
+            daemon=True,
+        ).start()
+        self._running.add(skill_name)
+        print(f"[*] HeartbeatManager: '{skill_name}' every {interval_seconds}s")
+
+    def _queue_discoveries(self, existing_cfg: dict):
+        if not self.SKILLS_DIR.exists():
+            return
+        for skill_dir in sorted(self.SKILLS_DIR.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_name = skill_dir.name
+            if skill_name in existing_cfg:
+                continue
+            heartbeat_file = skill_dir / "heartbeat.md"
+            if not heartbeat_file.exists():
+                continue
+            try:
+                content = heartbeat_file.read_text(encoding="utf-8")
+                msg = (
+                    f"[HEARTBEAT_DISCOVER: {skill_name}]\n"
+                    f"{content}\n\n"
+                    f"The above is the heartbeat.md for skill '{skill_name}'. "
+                    f"If the above heartbeat.md explicitly states an interval (e.g. 'every 30s', 'every 1 minute'), "
+                    f"use that exact value converted to seconds. "
+                    f"Only choose your own value if no interval is specified. Minimum 10 seconds. "
+                    f"Then read {self.CONFIG_FILE}, add an entry for '{skill_name}' "
+                    f"with {{\"enabled\": true, \"interval_seconds\": <value>}}, "
+                    f"and write the updated config back. "
+                    f"Do NOT send any message to the user. Stay completely silent."
+                )
+                self.task_queue.put(msg)
+                print(f"[*] HeartbeatManager: queued discovery for '{skill_name}'")
+            except Exception as e:
+                print(f"[!] HeartbeatManager: discovery failed for '{skill_name}': {e}")
+
+    def _watch_config(self):
+        """Poll config file for new entries and start threads for them."""
+        last_mtime = 0
+        while True:
+            time.sleep(5)
+            try:
+                if not self.CONFIG_FILE.exists():
+                    continue
+                mtime = self.CONFIG_FILE.stat().st_mtime
+                if mtime <= last_mtime:
+                    continue
+                last_mtime = mtime
+                cfg = self._load_config()
+                for skill_name, opts in cfg.items():
+                    if skill_name not in self._running:
+                        self._start_skill(skill_name, opts)
+            except Exception as e:
+                print(f"[!] HeartbeatManager: watcher error: {e}")
+
+    def _last_run(self, skill_name: str):
+        if not self.LOG_FILE.exists():
+            return None
+        last = None
+        try:
+            for line in self.LOG_FILE.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                if entry.get("skill") == skill_name:
+                    last = entry.get("fired_at")
+        except Exception:
+            pass
+        if last:
+            try:
+                return datetime.fromisoformat(last)
+            except Exception:
+                pass
+        return None
+
+    def _log(self, skill_name: str):
+        entry = {
+            "skill":    skill_name,
+            "fired_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with open(self.LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    def _run(self, skill_name: str, heartbeat_file: Path, interval_secs: int, is_new: bool):
+        if is_new:
+            wait = 0
+        else:
+            last = self._last_run(skill_name)
+            if last:
+                elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+                wait = max(0, interval_secs - elapsed)
+                if wait > 0:
+                    print(f"[*] HeartbeatManager: '{skill_name}' resumes in {int(wait)}s")
+            else:
+                wait = interval_secs
+
+        time.sleep(wait)
+
+        while True:
+            try:
+                content = heartbeat_file.read_text(encoding="utf-8")
+                self.task_queue.put(f"[HEARTBEAT: {skill_name}]\n{content}")
+                self._log(skill_name)
+                print(f"[*] HeartbeatManager: queued heartbeat for '{skill_name}'")
+            except Exception as e:
+                print(f"[!] HeartbeatManager: error for '{skill_name}': {e}")
+            time.sleep(interval_secs)
+
 
 class MMClaw(object):
     def __init__(self, config, connector, system_prompt):
@@ -19,6 +180,10 @@ class MMClaw(object):
         
         self.worker_thread = threading.Thread(target=self._worker, daemon=True)
         self.worker_thread.start()
+
+        self.heartbeat = HeartbeatManager(self.task_queue, self.connector)
+        self.heartbeat.start()
+
 
     def _extract_json(self, text):
         """Finds and parses the first JSON block from text."""
@@ -42,7 +207,20 @@ class MMClaw(object):
             user_text = self.task_queue.get()
             if user_text is None: break
             
-            self.memory.add("user", user_text)
+            if user_text.startswith("[HEARTBEAT_DISCOVER:"):
+                silent = "all"
+                is_heartbeat = True
+            elif user_text.startswith("[HEARTBEAT:"):
+                silent = "tools"
+                is_heartbeat = True
+            else:
+                silent = False
+                is_heartbeat = False
+
+            if is_heartbeat:
+                hb_history = [{"role": "user", "content": user_text}]
+            else:
+                self.memory.add("user", user_text)
 
             self.connector.start_typing()
             try:
@@ -52,16 +230,24 @@ class MMClaw(object):
                     new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
                     self.memory.update_system_prompt(new_prompt)
 
-                    response_msg = self.engine.ask(self.memory.get_all())
+                    if is_heartbeat:
+                        ask_messages = [self.memory.get_all()[0]] + hb_history
+                    else:
+                        ask_messages = self.memory.get_all()
+
+                    response_msg = self.engine.ask(ask_messages)
                     raw_text = response_msg.get("content", "")
 
-                    # We save the raw response to memory to maintain context
-                    self.memory.add("assistant", raw_text)
+                    if is_heartbeat:
+                        hb_history.append({"role": "assistant", "content": raw_text})
+                    else:
+                        self.memory.add("assistant", raw_text)
 
                     data = self._extract_json(raw_text)
                     # print(f"[D] data={repr(data)}")
                     if not data:
-                        self.connector.send(raw_text)
+                        if silent != "all":
+                            self.connector.send(raw_text)
                         break
 
                     if data.get("content"):
@@ -71,7 +257,8 @@ class MMClaw(object):
                                 content = json.dumps(content, ensure_ascii=False)
                             except Exception:
                                 content = "[Error: unexpected content format]"
-                        self.connector.send(content)
+                        if silent != "all":
+                            self.connector.send(content)
 
                     tools = data.get("tools", [])
                     if not tools:
@@ -89,35 +276,35 @@ class MMClaw(object):
 
                         result = ""
                         if name == "shell_execute":
-                            self.connector.send(f"🐚 Shell: `{args.get('command')}`")
+                            if silent is False: self.connector.send(f"🐚 Shell: `{args.get('command')}`")
                             result = ShellTool.execute(args.get("command"))
                         elif name == "shell_async":
-                            self.connector.send(f"🚀 Async Shell: `{args.get('command')}`")
+                            if silent is False: self.connector.send(f"🚀 Async Shell: `{args.get('command')}`")
                             result = AsyncShellTool.execute(args.get("command"))
                         elif name == "file_read":
-                            self.connector.send(f"📖 Read: `{args.get('path')}`")
+                            if silent is False: self.connector.send(f"📖 Read: `{args.get('path')}`")
                             result = FileTool.read(args.get("path"))
                         elif name == "file_write":
-                            self.connector.send(f"💾 Write: `{args.get('path')}`")
+                            if silent is False: self.connector.send(f"💾 Write: `{args.get('path')}`")
                             result = FileTool.write(args.get("path"), args.get("content"))
                         elif name == "file_upload":
-                            self.connector.send(f"📤 Upload: `{args.get('path')}`")
+                            if silent is False: self.connector.send(f"📤 Upload: `{args.get('path')}`")
                             self.connector.send_file(args.get("path"))
                             result = f"File {args.get('path')} sent."
                         elif name == "wait":
-                            self.connector.send(f"⏳ Waiting {args.get('seconds')}s...")
+                            if silent is False: self.connector.send(f"⏳ Waiting {args.get('seconds')}s...")
                             result = TimerTool.wait(args.get("seconds"))
                         elif name == "reset_session":
                             self.memory.reset()
-                            self.connector.send("✨ Session reset! Starting fresh.")
+                            if silent is False: self.connector.send("✨ Session reset! Starting fresh.")
                             result = "Success: Session history cleared."
                             session_reset = True
                             break
                         elif name == "memory_add":
-                            self.connector.send(f"🧠 Memorize: `{args.get('memory', '')}`")
+                            if silent is False: self.connector.send(f"🧠 Memorize: `{args.get('memory', '')}`")
                             result = self.memory.global_memory_add(args.get("memory", ""))
                         elif name == "memory_list":
-                            self.connector.send("🧠 Listing global memories...")
+                            if silent is False: self.connector.send("🧠 Listing global memories...")
                             result = self.memory.global_memory_list()
                         elif name == "memory_delete":
                             indices = args.get("indices", args.get("index", -1))
@@ -125,41 +312,44 @@ class MMClaw(object):
                                 indices = [int(i) for i in indices]
                             else:
                                 indices = int(indices)
-                            self.connector.send(f"🧠 Delete memory {indices}")
+                            if silent is False: self.connector.send(f"🧠 Delete memory {indices}")
                             result = self.memory.global_memory_delete(indices)
                         elif name == "browser_start":
-                            self.connector.send("🌐 Starting browser...")
+                            if silent is False: self.connector.send("🌐 Starting browser...")
                             user_data_dir = self.config.get("browser", {}).get("data_dir")
                             result = BrowserTool.start(user_data_dir=user_data_dir)
                         elif name == "browser_stop":
-                            self.connector.send("🌐 Stopping browser...")
+                            if silent is False: self.connector.send("🌐 Stopping browser...")
                             result = BrowserTool.stop()
                         elif name == "browser_navigate":
-                            self.connector.send(f"🌐 Navigate: `{args.get('url')}`")
+                            if silent is False: self.connector.send(f"🌐 Navigate: `{args.get('url')}`")
                             result = BrowserTool.navigate(args.get("url"))
                         elif name == "browser_click":
-                            self.connector.send(f"🌐 Click: `{args.get('selector')}`")
+                            if silent is False: self.connector.send(f"🌐 Click: `{args.get('selector')}`")
                             result = BrowserTool.click(args.get("selector"))
                         elif name == "browser_fill":
-                            self.connector.send(f"🌐 Fill: `{args.get('selector')}`")
+                            if silent is False: self.connector.send(f"🌐 Fill: `{args.get('selector')}`")
                             result = BrowserTool.fill(args.get("selector"), args.get("text", ""))
                         elif name == "browser_get_text":
-                            self.connector.send(f"🌐 Get text: `{args.get('selector', 'body')}`")
+                            if silent is False: self.connector.send(f"🌐 Get text: `{args.get('selector', 'body')}`")
                             result = BrowserTool.get_text(args.get("selector"))
                         elif name == "browser_screenshot":
-                            self.connector.send("🌐 Screenshot...")
+                            if silent is False: self.connector.send("🌐 Screenshot...")
                             result = BrowserTool.screenshot(args.get("path"))
                             if result.startswith("OK:"):
-                                self.connector.send_file(result[4:].strip())
+                                if silent is False: self.connector.send_file(result[4:].strip())
                         elif name == "upgrade":
-                            self.connector.send("⬆️ Upgrading MMClaw... (this is tricky — there's no notification when it's done. Please wait a moment, then ask me for my version number to confirm the upgrade succeeded.)")
+                            if silent is False: self.connector.send("⬆️ Upgrading MMClaw... (this is tricky — there's no notification when it's done. Please wait a moment, then ask me for my version number to confirm the upgrade succeeded.)")
                             result = UpgradeTool.upgrade()  # restarts process on success; only returns on failure
-                            self.connector.send(f"❌ Upgrade failed: {result}")
+                            if silent is False: self.connector.send(f"❌ Upgrade failed: {result}")
 
                         if self.debug:
                             print(f"\n    [Tool Output: {name}]\n    {result}\n")
-                        # self.memory.add("system", f"Tool Output ({name}):\n{result}")
-                        self.memory.add("user", f"Tool Output ({name}):\n{result}")
+                        tool_output = f"Tool Output ({name}):\n{result}"
+                        if is_heartbeat:
+                            hb_history.append({"role": "user", "content": tool_output})
+                        else:
+                            self.memory.add("user", tool_output)
 
                     if session_reset:
                         break
