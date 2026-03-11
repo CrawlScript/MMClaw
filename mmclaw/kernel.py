@@ -9,6 +9,7 @@ from pathlib import Path
 from .providers import Engine
 from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool, BrowserTool
 from .memory import FileMemory
+from .watcher import WatcherManager
 
 
 class HeartbeatManager:
@@ -175,14 +176,18 @@ class MMClaw(object):
         self.connector = connector
         self.memory = FileMemory(system_prompt)
         self.connector.file_saver = self.memory.save_file
-        self.task_queue = queue.Queue()
+        self.chat_queue = queue.Queue()
+        self.heartbeat_queue = queue.Queue()
         self.debug = config.get("debug", False)
-        
-        self.worker_thread = threading.Thread(target=self._worker, daemon=True)
-        self.worker_thread.start()
 
-        self.heartbeat = HeartbeatManager(self.task_queue, self.connector)
+        threading.Thread(target=self._worker, args=(self.chat_queue, False), daemon=True).start()
+        threading.Thread(target=self._worker, args=(self.heartbeat_queue, True), daemon=True).start()
+
+        self.heartbeat = HeartbeatManager(self.heartbeat_queue, self.connector)
         self.heartbeat.start()
+
+        self.watcher = WatcherManager(self.chat_queue)
+        self.watcher.start()
 
 
     def _extract_json(self, text):
@@ -202,24 +207,17 @@ class MMClaw(object):
             return None
         return None
 
-    def _worker(self):
+    def _worker(self, q: queue.Queue, is_heartbeat: bool):
         while True:
-            user_text = self.task_queue.get()
-            if user_text is None: break
-            
-            if user_text.startswith("[HEARTBEAT_DISCOVER:"):
-                silent = "all"
-                is_heartbeat = True
-            elif user_text.startswith("[HEARTBEAT:"):
-                silent = "tools"
-                is_heartbeat = True
-            else:
-                silent = False
-                is_heartbeat = False
+            user_text = q.get()
+            if user_text is None:
+                break
 
             if is_heartbeat:
-                hb_history = [{"role": "user", "content": user_text}]
+                silent = "all" if user_text.startswith("[HEARTBEAT_DISCOVER:") else "tools"
+                history = [{"role": "user", "content": user_text}]
             else:
+                silent = False
                 self.memory.add("user", user_text)
 
             self.connector.start_typing()
@@ -230,16 +228,13 @@ class MMClaw(object):
                     new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
                     self.memory.update_system_prompt(new_prompt)
 
-                    if is_heartbeat:
-                        ask_messages = [self.memory.get_all()[0]] + hb_history
-                    else:
-                        ask_messages = self.memory.get_all()
+                    ask_messages = [self.memory.get_all()[0]] + history if is_heartbeat else self.memory.get_all()
 
                     response_msg = self.engine.ask(ask_messages)
                     raw_text = response_msg.get("content", "")
 
                     if is_heartbeat:
-                        hb_history.append({"role": "assistant", "content": raw_text})
+                        history.append({"role": "assistant", "content": raw_text})
                     else:
                         self.memory.add("assistant", raw_text)
 
@@ -269,7 +264,6 @@ class MMClaw(object):
                         name = tool.get("name")
                         args = tool.get("args", {})
 
-                        # Always print the tool name
                         print(f"    [Tool Call: {name}]")
                         if self.debug:
                             print(f"    Args: {json.dumps(args)}")
@@ -347,7 +341,7 @@ class MMClaw(object):
                             print(f"\n    [Tool Output: {name}]\n    {result}\n")
                         tool_output = f"Tool Output ({name}):\n{result}"
                         if is_heartbeat:
-                            hb_history.append({"role": "user", "content": tool_output})
+                            history.append({"role": "user", "content": tool_output})
                         else:
                             self.memory.add("user", tool_output)
 
@@ -359,10 +353,10 @@ class MMClaw(object):
                 traceback.print_exc()
             finally:
                 self.connector.stop_typing()
-                self.task_queue.task_done()
+                q.task_done()
 
     def handle(self, text):
-        self.task_queue.put(text)
+        self.chat_queue.put(text)
 
     def run(self, stop_on_auth=False):
         try:
