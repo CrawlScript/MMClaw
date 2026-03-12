@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from .providers import Engine
 from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool, BrowserTool
+from .config import _find_file_icase
 from .memory import FileMemory
 from .watcher import WatcherManager
 
@@ -51,8 +52,8 @@ class HeartbeatManager:
         if not opts.get("enabled", True):
             return
         interval_seconds = max(10, int(opts.get("interval_seconds", 1800)))
-        heartbeat_file = self.SKILLS_DIR / skill_name / "heartbeat.md"
-        if not heartbeat_file.exists():
+        heartbeat_file = _find_file_icase(self.SKILLS_DIR / skill_name, "heartbeat.md")
+        if not heartbeat_file:
             print(f"[!] HeartbeatManager: no heartbeat.md for '{skill_name}', skipping.")
             return
         is_new = self._last_run(skill_name) is None
@@ -73,8 +74,8 @@ class HeartbeatManager:
             skill_name = skill_dir.name
             if skill_name in existing_cfg:
                 continue
-            heartbeat_file = skill_dir / "heartbeat.md"
-            if not heartbeat_file.exists():
+            heartbeat_file = _find_file_icase(skill_dir, "heartbeat.md")
+            if not heartbeat_file:
                 continue
             try:
                 content = heartbeat_file.read_text(encoding="utf-8")

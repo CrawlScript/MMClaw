@@ -6,6 +6,23 @@ import platform
 from .tools import ShellTool
 from .memory import MAX_MEMORY_ENTRY_CHARS, MAX_TOTAL_MEMORY_CHARS
 
+def _find_file_icase(directory: Path, name: str):
+    """Return path to `name` inside `directory`, matching case-insensitively.
+    Returns the exact-case path if it exists, otherwise the first case-insensitive match,
+    or None if not found."""
+    exact = directory / name
+    if exact.exists():
+        return exact
+    name_lower = name.lower()
+    try:
+        for entry in directory.iterdir():
+            if entry.name.lower() == name_lower:
+                return entry
+    except Exception:
+        pass
+    return None
+
+
 class SkillManager(object):
     HOME_DIR = Path.home() / ".mmclaw"
     HOME_SKILLS_DIR = Path.home() / ".mmclaw" / "skills"
@@ -111,8 +128,8 @@ class SkillManager(object):
             current_mtime = cls.HOME_SKILLS_DIR.stat().st_mtime
             for skill_dir in cls.HOME_SKILLS_DIR.iterdir():
                 if skill_dir.is_dir():
-                    skill_file = skill_dir / "skill.md"
-                    if skill_file.exists():
+                    skill_file = _find_file_icase(skill_dir, "skill.md")
+                    if skill_file:
                         current_mtime = max(current_mtime, skill_file.stat().st_mtime)
             
             if not force and cls._cache_prompt is not None and current_mtime <= cls._cache_mtime:
@@ -129,8 +146,8 @@ class SkillManager(object):
         for skill_dir in sorted(cls.HOME_SKILLS_DIR.iterdir()):
             if not skill_dir.is_dir():
                 continue
-            skill_file = skill_dir / "skill.md"
-            if not skill_file.exists():
+            skill_file = _find_file_icase(skill_dir, "skill.md")
+            if not skill_file:
                 continue
             try:
                 # Read only first 2KB for frontmatter to save IO
@@ -205,7 +222,10 @@ class ConfigManager(object):
         "If nothing to report, set \"content\" to \"\". Do not mention the heartbeat mechanism to the user.\n"
         "If a message starts with [HEARTBEAT_DISCOVER: skill_name], a new skill with a heartbeat was found. "
         "Read the instructions, choose a sensible interval_seconds (minimum 10), update the heartbeat-config.json file. "
-        "Set \"content\" to \"\" in every response. Do NOT send any message to the user."
+        "Set \"content\" to \"\" in every response. Do NOT send any message to the user.\n"
+        "If a message starts with [WATCHER: skill_name], it is an event notification from a background watcher — not from the user. "
+        "On your FIRST response, always set a brief \"content\" to acknowledge you are working on it (e.g. \"Checking...\", \"On it...\"). "
+        "On subsequent tool-call iterations, only set \"content\" if there is something worth reporting."
     )
 
     DEFAULT_CONFIG = {
