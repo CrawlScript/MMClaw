@@ -1,5 +1,6 @@
 import os
 import argparse
+from pathlib import Path
 import urllib.request
 import urllib.parse
 import json
@@ -437,7 +438,9 @@ def main():
         sys.stderr.reconfigure(line_buffering=True)
 
     parser = argparse.ArgumentParser(description="MMClaw: Your autonomous multimodal AI agent.")
-    parser.add_argument("command", nargs="?", help="Command to run (run, config)")
+    parser.add_argument("command", nargs="?", help="Command to run (run, config, skill)")
+    parser.add_argument("subcommand", nargs="?", help="Subcommand (e.g. install)")
+    parser.add_argument("skill_path", nargs="?", help="Path to skill directory")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     args = parser.parse_args()
 
@@ -445,6 +448,23 @@ def main():
     if args.command == "config":
         config, need_auth = run_setup(config)
         if not need_auth: return
+    elif args.command == "skill":
+        if args.subcommand == "install":
+            if not args.skill_path:
+                print("[❌] Usage: mmclaw skill install <path-to-skill-dir>")
+                return
+            src = Path(args.skill_path).resolve()
+            if not src.is_dir():
+                print(f"[❌] Not a directory: {src}")
+                return
+            dest = SkillManager.HOME_SKILLS_DIR / src.name
+            import shutil
+            shutil.copytree(src, dest, dirs_exist_ok=True)
+            print(f"[✓] Skill '{src.name}' installed to {dest}")
+        else:
+            print(f"[❌] Unknown skill subcommand: {args.subcommand!r}")
+            print("     Usage: mmclaw skill install <path-to-skill-dir>")
+        return
     elif args.command not in [None, "run"]:
         parser.print_help()
         return
