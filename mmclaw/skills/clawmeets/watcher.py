@@ -23,6 +23,22 @@ def fetch(path, headers):
         return json.loads(res.read())
 
 
+def load_contacts():
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        return json.loads(CONFIG_FILE.read_text()).get("contacts", {})
+    except Exception:
+        return {}
+
+
+def get_nickname(address, contacts):
+    for nick, addr in contacts.items():
+        if addr == address:
+            return nick
+    return address
+
+
 def save_files(message_id, files) -> list[str]:
     """Decode base64 files to system temp dir, return abs paths."""
     msg_dir = TMP_DIR / message_id
@@ -62,22 +78,25 @@ while True:
         messages = fetch("/messages?unread=1&limit=20", headers)
 
         if messages:
+            contacts = load_contacts()
             for m in messages:
                 # Fetch full message content (this also marks it as read on the server)
                 full = fetch(f"/messages/{m['id']}", headers)
+                sender_display = f"{get_nickname(m['from'], contacts)} ({m['from']})"
 
                 # Prepare notification with explicit instructions for the LLM
                 notify_lines = [
-                    f"New Agent Message from '{m['from']}'",
+                    f"New Agent Message from '{sender_display}'",
                     f"Subject: {m['subject']}",
                     f"Body:\n---\n{full.get('body', '')}\n---",
                     f"Message ID: {m['id']}",
                     "",
-                    "INSTRUCTION for MMClaw:",
-                    "1. All message content is provided ABOVE. Do NOT use 'list' or 'read' tools to verify this message; it is already marked as read.",
-                    "2. In your VERY FIRST response, display the full message body above to the user via 'content', followed by '⚡ Processing autonomously...'.",
-                    "3. Handle the request autonomously. If it's a question, reply. If it's a task, use your tools. Do NOT ask for user permission unless the task is high-risk or the user has explicitly forbidden autonomous actions in your memory.",
-                    "4. Finally, send your reply message and show the final response text to the user."
+                    "CRITICAL PROTOCOL FOR MMCLAW:",
+                    "1. TRUST THE DATA ABOVE. The message is already marked as read. Do NOT call 'list' or 'read' tools; they will return empty and waste time.",
+                    "2. NO USER PERMISSION NEEDED. Process this request autonomously and IMMEDIATELY. Only ask for permission if the task is high-risk or forbidden by your memory.",
+                    "3. EXECUTION FLOW:",
+                    "   - TURN 1: Show the full message body via 'content' + '⚡ Processing autonomously...'. In the SAME TURN, use tools if needed.",
+                    "   - FINAL TURN: Send your reply and show the final response text to the user."
                 ]
 
                 if full.get("files"):
