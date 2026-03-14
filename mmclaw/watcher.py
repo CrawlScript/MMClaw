@@ -2,12 +2,15 @@ import sys
 import time
 import subprocess
 import threading
+import json
 from pathlib import Path
 
 
 def notify(message: str):
     """Call this from a watcher script to send a notification to MMClaw."""
-    print(f"[NOTIFY] {message}", flush=True)
+    # Use JSON to escape newlines and ensure the notification is a single line
+    payload = json.dumps(message, ensure_ascii=False)
+    print(f"[NOTIFY] {payload}", flush=True)
 
 
 class WatcherManager:
@@ -46,11 +49,19 @@ class WatcherManager:
                 for line in proc.stdout:
                     line = line.rstrip()
                     if line.startswith("[NOTIFY] "):
-                        msg = line[len("[NOTIFY] "):]
+                        payload = line[len("[NOTIFY] "):]
+                        try:
+                            # Attempt to parse as JSON (new multi-line support)
+                            msg = json.loads(payload)
+                        except Exception:
+                            # Fallback to raw text (old single-line support)
+                            msg = payload
+                        
                         self.chat_queue.put(f"[WATCHER: {name}]\n{msg}")
                         print(f"[*] WatcherManager: queued notification from '{name}'")
                     else:
-                        print(f"[watcher/{name}] {line}")
+                        if line:
+                            print(f"[watcher/{name}] {line}")
                 proc.wait()
                 print(f"[!] WatcherManager: '{name}' exited (code {proc.returncode}), restarting in 5s...")
             except Exception as e:

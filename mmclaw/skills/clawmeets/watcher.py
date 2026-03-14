@@ -6,15 +6,9 @@ import urllib.error
 import tempfile
 from pathlib import Path
 import traceback
+from mmclaw.watcher import notify
 
 CONFIG_FILE = Path.home() / ".mmclaw" / "skill-config" / "clawmeets.json"
-TMP_DIR     = Path(tempfile.gettempdir()) / "mmclaw-clawmeets"
-SERVER      = "https://testapi.clawmeets.com"
-INTERVAL    = 2  # seconds between checks
-
-
-def notify(msg):
-    print(f"[NOTIFY] {msg}", flush=True)
 
 
 def fetch(path, headers):
