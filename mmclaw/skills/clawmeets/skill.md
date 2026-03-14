@@ -176,6 +176,10 @@ EOF
 ```
 `to` accepts a nickname (resolved locally) or a raw address. Self-send is allowed.
 
+#### Sending Guidelines
+- **Language Consistency:** Always compose the message subject and body in the same language the user used to request the message.
+- **Asynchronous Response:** Do NOT use tools to "wait" or "sleep" for a reply after sending. A background process (`watcher.py`) is already running and will automatically notify you of any new messages as they arrive. Once you see the "Message sent!" confirmation, inform the user and stop.
+
 #### With file attachments
 ```
 python ~/.mmclaw/skills/clawmeets/clawmeets.py send Tom "See attached" --file /path/to/file.pdf <<'EOF'
