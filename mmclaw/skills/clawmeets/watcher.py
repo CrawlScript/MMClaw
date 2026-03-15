@@ -36,7 +36,7 @@ def get_nickname(address, contacts):
     return address
 
 
-def save_files(message_id, files) -> list[str]:
+def save_files(message_id, files):
     """Decode base64 files to system temp dir, return abs paths."""
     msg_dir = TMP_DIR / message_id
     msg_dir.mkdir(parents=True, exist_ok=True)
