@@ -345,6 +345,14 @@ class TelegramConnector(object):
         def unauthorized(message):
             self.bot.reply_to(message, "🚫 Unauthorized. I only respond to my master.")
 
+        try:
+            self.bot.set_my_commands([
+                telebot.types.BotCommand("/new",  "Start a new session"),
+                telebot.types.BotCommand("/stop", "Cancel the current job"),
+            ])
+        except Exception as e:
+            print(f"[!] Telegram: failed to register commands: {e}")
+
         self.bot.infinity_polling()
 
     def send(self, message):

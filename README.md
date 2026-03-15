@@ -106,5 +106,12 @@ MMClaw supports a wide range of LLM providers:
 
 
 
+## ⌨️ Built-in Commands
+
+MMClaw supports slash commands such as:
+
+- `/new` — Start a fresh session, clearing the current conversation history.
+- `/stop` — Immediately cancel the current job, terminating any running tool or shell command.
+
 ---
 *Developed with ❤️ for the Python community. Let's keep it simple.*

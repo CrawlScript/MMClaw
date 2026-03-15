@@ -4,6 +4,8 @@ import queue
 import json
 import re
 import time
+import subprocess
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 from .providers import Engine
@@ -11,6 +13,11 @@ from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, 
 from .config import _find_file_icase
 from .memory import FileMemory
 from .watcher import WatcherManager
+
+
+class StopRequested(Exception):
+    """Raised inside the chat worker when the user sends /stop."""
+    pass
 
 
 class HeartbeatManager:
@@ -190,6 +197,108 @@ class MMClaw(object):
         self.watcher = WatcherManager(self.chat_queue)
         self.watcher.start()
 
+        # /stop support
+        self._stop_event  = threading.Event()
+        self._current_proc = None
+        self._proc_lock    = threading.Lock()
+
+    # ------------------------------------------------------------------
+    # /stop support
+    # ------------------------------------------------------------------
+
+    def stop(self):
+        """Cancel the current chat job immediately."""
+        self._stop_event.set()
+        with self._proc_lock:
+            if self._current_proc is not None:
+                try:
+                    self._current_proc.kill()
+                except Exception:
+                    pass
+        self.connector.stop_typing()
+        self.connector.send("✋ Job cancelled.")
+
+    def _check_stop(self):
+        if self._stop_event.is_set():
+            raise StopRequested()
+
+    def _ask_with_stop(self, messages):
+        """Run engine.ask() in a daemon thread, interruptible by the stop event."""
+        result_box = [None]
+        error_box  = [None]
+        done       = threading.Event()
+
+        def _ask():
+            try:
+                result_box[0] = self.engine.ask(messages)
+            except Exception as e:
+                error_box[0] = e
+            finally:
+                done.set()
+
+        threading.Thread(target=_ask, daemon=True).start()
+        while not done.wait(timeout=0.2):
+            self._check_stop()
+        self._check_stop()  # one final check after completion
+        if error_box[0]:
+            raise error_box[0]
+        return result_box[0]
+
+    def _shell_execute_with_stop(self, command):
+        """Execute a shell command, killable via the stop event."""
+        import locale
+        try:
+            proc = subprocess.Popen(
+                command, shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except Exception as e:
+            return f"Error executing command: {str(e)}"
+
+        with self._proc_lock:
+            self._current_proc = proc
+
+        deadline = time.time() + ShellTool.TIMEOUT
+        try:
+            while proc.poll() is None:
+                if self._stop_event.is_set():
+                    proc.kill()
+                    proc.wait()
+                    raise StopRequested()
+                if time.time() > deadline:
+                    proc.kill()
+                    proc.wait()
+                    return f"Error executing command: timed out after {ShellTool.TIMEOUT}s"
+                time.sleep(0.1)
+        finally:
+            with self._proc_lock:
+                if self._current_proc is proc:
+                    self._current_proc = None
+
+        stdout = proc.stdout.read()
+        stderr = proc.stderr.read()
+        output = stdout if proc.returncode == 0 else stderr
+        try:
+            output = output.decode('utf-8')
+        except UnicodeDecodeError:
+            output = output.decode(locale.getpreferredencoding(False), errors='replace')
+        return f"Return Code {proc.returncode}:\n{output}"
+
+    def _wait_with_stop(self, seconds):
+        """Sleep for N seconds, interruptible by the stop event."""
+        try:
+            secs = float(seconds)
+        except Exception as e:
+            return f"Timer error: {str(e)}"
+        end = time.time() + secs
+        while time.time() < end:
+            if self._stop_event.is_set():
+                raise StopRequested()
+            time.sleep(0.1)
+        return f"Waited for {secs} seconds."
+
+    # ------------------------------------------------------------------
 
     def _extract_json(self, text):
         """Finds and parses the first JSON block from text."""
@@ -219,6 +328,8 @@ class MMClaw(object):
                 silent_content = user_text.startswith("[HEARTBEAT_DISCOVER:")
                 history = [{"role": "user", "content": user_text}]
             else:
+                # Reset the stop flag at the start of every new chat task
+                self._stop_event.clear()
                 silent_tools   = user_text.startswith("[WATCHER:")
                 silent_content = False
                 self.memory.add("user", user_text)
@@ -226,6 +337,9 @@ class MMClaw(object):
             self.connector.start_typing()
             try:
                 while True:
+                    if not is_heartbeat:
+                        self._check_stop()
+
                     # Refresh system prompt before every call to pick up new skills or context changes
                     from .config import ConfigManager
                     new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
@@ -233,7 +347,10 @@ class MMClaw(object):
 
                     ask_messages = [self.memory.get_all()[0]] + history if is_heartbeat else self.memory.get_all()
 
-                    response_msg = self.engine.ask(ask_messages)
+                    if is_heartbeat:
+                        response_msg = self.engine.ask(ask_messages)
+                    else:
+                        response_msg = self._ask_with_stop(ask_messages)
                     raw_text = response_msg.get("content", "")
 
                     if is_heartbeat:
@@ -264,6 +381,9 @@ class MMClaw(object):
 
                     session_reset = False
                     for tool in tools:
+                        if not is_heartbeat:
+                            self._check_stop()
+
                         name = tool.get("name")
                         args = tool.get("args", {})
 
@@ -274,7 +394,10 @@ class MMClaw(object):
                         result = ""
                         if name == "shell_execute":
                             if not silent_tools:self.connector.send(f"🐚 Shell: `{args.get('command')}`")
-                            result = ShellTool.execute(args.get("command"))
+                            if is_heartbeat:
+                                result = ShellTool.execute(args.get("command"))
+                            else:
+                                result = self._shell_execute_with_stop(args.get("command"))
                         elif name == "shell_async":
                             if not silent_tools:self.connector.send(f"🚀 Async Shell: `{args.get('command')}`")
                             result = AsyncShellTool.execute(args.get("command"))
@@ -290,7 +413,10 @@ class MMClaw(object):
                             result = f"File {args.get('path')} sent."
                         elif name == "wait":
                             if not silent_tools:self.connector.send(f"⏳ Waiting {args.get('seconds')}s...")
-                            result = TimerTool.wait(args.get("seconds"))
+                            if is_heartbeat:
+                                result = TimerTool.wait(args.get("seconds"))
+                            else:
+                                result = self._wait_with_stop(args.get("seconds"))
                         elif name == "reset_session":
                             self.memory.reset()
                             if not silent_tools:self.connector.send("✨ Session reset! Starting fresh.")
@@ -351,6 +477,8 @@ class MMClaw(object):
                     if session_reset:
                         break
 
+            except StopRequested:
+                pass  # Job was cancelled cleanly; no further action needed
             except Exception as e:
                 print(f"[!] Worker error: {e}")
                 traceback.print_exc()
@@ -359,6 +487,15 @@ class MMClaw(object):
                 q.task_done()
 
     def handle(self, text):
+        if text.strip() == "/stop":
+            self.stop()
+            return
+        if text.strip() == "/new":
+            self.memory.reset()
+            self.connector.send("✨ Session reset! Starting fresh.")
+            return
+        if random.random() < 0.15:
+            self.connector.send("💡 Tip: type /stop at any time to cancel the current job.")
         self.chat_queue.put(text)
 
     def run(self, stop_on_auth=False):
