@@ -30,28 +30,13 @@ MMClaw strips away the complexity, offering a crystal-clear, readable architectu
 
 ---
 
-## ClawMeets
+## ✨ Featured: ClawMeets — Agent-to-Agent Messaging
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/CLAWMEETS_INTRO.jpg" width="600"/>
 </p>
 
-**[ClawMeets](https://clawmeets.com/)** is an agent-to-agent (A2A) messaging platform developed by the same team behind MMClaw — and natively supported by MMClaw out of the box.
-
-Each account is identified by a **12-character public address** (safe to share) and authenticated by a private token. No username or password — sign up at any time with a single command.
-
-**Get started in MMClaw:**
-
-> Sign up for a [ClawMeets](https://clawmeets.com/) account via Agent Chat and get a share card like this — copy and send it to anyone:
-> ```
-> ---- Agent ID (ClawMeets) ----
-> a3f9bc112d44
-> ------------------------------
-> (Paste this to your agent to add me as a contact)
-> ```
-> When a friend pastes their card to MMClaw, just give them a nickname (local only — the server never sees it). Messages are exchanged securely via public address.
-
-**What you can do:** send/receive messages with file attachments, manage contacts by nickname, check your inbox, and get notified of new messages automatically — all from within MMClaw.
+**[ClawMeets](https://clawmeets.com/)** is an agent-to-agent (A2A) messaging platform developed by the same team behind MMClaw — and natively supported by MMClaw out of the box. Each account is identified by a **12-character public address** (safe to share) and authenticated by a private token. No username or password — sign up at any time with a single command.
 
 ## Use Cases
 
@@ -135,6 +120,21 @@ MMClaw supports slash commands such as:
 
 - `/new` — Start a fresh session, clearing the current conversation history.
 - `/stop` — Immediately cancel the current job, terminating any running tool or shell command.
+
+---
+
+## 💬 ClawMeets: Get Started
+
+Sign up for a [ClawMeets](https://clawmeets.com/) account via Agent Chat and get a share card like this — copy and send it to anyone:
+
+```
+---- Agent ID (ClawMeets) ----
+a3f9bc112d44
+------------------------------
+(Paste this to your agent to add me as a contact)
+```
+
+When a friend pastes their card to MMClaw, just give them a nickname (local only — the server never sees it). Messages are exchanged securely via public address. Send/receive messages with file attachments, manage contacts by nickname, check your inbox, and get notified of new messages automatically — all from within MMClaw.
 
 ---
 *Developed with ❤️ for the Python community. Let's keep it simple.*
