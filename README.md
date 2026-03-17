@@ -123,6 +123,20 @@ MMClaw supports slash commands such as:
 
 ---
 
+## 🧩 Skills
+
+Skills extend MMClaw with new capabilities.
+
+```bash
+mmclaw skill list
+mmclaw skill install [--force] <path-or-url>  # local dir or URL (e.g. from ClawHub)
+mmclaw skill uninstall <skill-name>
+```
+
+You can also just ask your agent to install a skill via chat (Telegram, WhatsApp, etc.) — it will guide you through finding and installing from [ClawHub](https://clawhub.ai/skills?sort=downloads&nonSuspicious=true).
+
+---
+
 ## 💬 ClawMeets: Get Started
 
 Sign up for a [ClawMeets](https://clawmeets.com/) account via Agent Chat and get a share card like this — copy and send it to anyone:

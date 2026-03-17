@@ -442,6 +442,7 @@ def main():
     parser.add_argument("subcommand", nargs="?", help="Subcommand (e.g. install)")
     parser.add_argument("skill_path", nargs="?", help="Path to skill directory")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
+    parser.add_argument("--force", action="store_true", help="Force install, skip confirmation prompts")
     args = parser.parse_args()
 
     config = ConfigManager.load()
@@ -451,19 +452,80 @@ def main():
     elif args.command == "skill":
         if args.subcommand == "install":
             if not args.skill_path:
-                print("[❌] Usage: mmclaw skill install <path-to-skill-dir>")
+                print("[❌] Usage: mmclaw skill install <path-to-skill-dir-or-url>")
                 return
-            src = Path(args.skill_path).resolve()
-            if not src.is_dir():
-                print(f"[❌] Not a directory: {src}")
+            import shutil, tempfile, zipfile, re
+            skill_path = args.skill_path
+
+            def strip_version(name):
+                return re.sub(r'[-_](\d+\.)*\d+$', '', name) or name
+
+            def confirm_replace(dest, skill_name):
+                if dest.exists():
+                    if args.force:
+                        shutil.rmtree(dest)
+                    else:
+                        print(f"[❌] Skill '{skill_name}' already exists. Use --force to replace it.")
+                        return False
+                return True
+
+            if skill_path.startswith("http://") or skill_path.startswith("https://"):
+                print(f"[*] Downloading {skill_path} ...")
+                try:
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        tmp_zip, headers = urllib.request.urlretrieve(skill_path)
+                        cd = headers.get("content-disposition", "")
+                        zip_name = next((p.split("=",1)[1].strip().strip('"\'') for p in cd.split(";") if p.strip().lower().startswith("filename=")), "skill.zip")
+                        skill_name = strip_version(Path(zip_name).stem)
+                        extract_dir = os.path.join(tmpdir, "extracted")
+                        os.makedirs(extract_dir)
+                        with zipfile.ZipFile(tmp_zip, "r") as zf:
+                            zf.extractall(extract_dir)
+                        subdirs = [Path(extract_dir) / d for d in os.listdir(extract_dir) if (Path(extract_dir) / d).is_dir() and d != "__MACOSX"]
+                        src = subdirs[0] if subdirs else Path(extract_dir)
+                        dest = SkillManager.HOME_SKILLS_DIR / skill_name
+                        if not confirm_replace(dest, skill_name): return
+                        shutil.copytree(src, dest, dirs_exist_ok=True)
+                        print(f"[✓] Skill '{skill_name}' installed to {dest}")
+                except Exception as e:
+                    print(f"[❌] Download/install failed: {e}")
+                    return
+            else:
+                src = Path(skill_path).resolve()
+                if not src.is_dir():
+                    print(f"[❌] Not a directory: {src}")
+                    return
+                skill_name = strip_version(src.name)
+                dest = SkillManager.HOME_SKILLS_DIR / skill_name
+                if not confirm_replace(dest, skill_name): return
+                shutil.copytree(src, dest, dirs_exist_ok=True)
+                print(f"[✓] Skill '{skill_name}' installed to {dest}")
+        elif args.subcommand == "list":
+            if not SkillManager.HOME_SKILLS_DIR.exists():
+                print("(no skills installed)")
+            else:
+                skills = sorted(d.name for d in SkillManager.HOME_SKILLS_DIR.iterdir() if d.is_dir())
+                if not skills:
+                    print("(no skills installed)")
+                else:
+                    for s in skills:
+                        print(s)
+        elif args.subcommand == "uninstall":
+            if not args.skill_path:
+                print("[❌] Usage: mmclaw skill uninstall <skill-name>")
                 return
-            dest = SkillManager.HOME_SKILLS_DIR / src.name
             import shutil
-            shutil.copytree(src, dest, dirs_exist_ok=True)
-            print(f"[✓] Skill '{src.name}' installed to {dest}")
+            target = SkillManager.HOME_SKILLS_DIR / args.skill_path
+            if not target.exists():
+                print(f"[❌] Skill '{args.skill_path}' not found in {SkillManager.HOME_SKILLS_DIR}")
+                return
+            shutil.rmtree(target)
+            print(f"[✓] Skill '{args.skill_path}' uninstalled.")
         else:
             print(f"[❌] Unknown skill subcommand: {args.subcommand!r}")
-            print("     Usage: mmclaw skill install <path-to-skill-dir>")
+            print("     Usage: mmclaw skill list")
+            print("            mmclaw skill install <path-to-skill-dir-or-url>")
+            print("            mmclaw skill uninstall <skill-name>")
         return
     elif args.command not in [None, "run"]:
         parser.print_help()
