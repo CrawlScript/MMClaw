@@ -155,6 +155,17 @@ Common use cases: multiple Telegram bots (e.g. one for personal use, one for cod
 
 ---
 
+## ⏰ Scheduled Tasks
+
+Just tell your agent what to do and when — it handles the rest:
+
+> *"Remind me to drink water every 30 minutes"*
+> *"Send me a weather summary every day at 8am"*
+
+You can also list, delete, or modify scheduled tasks anytime by just asking.
+
+---
+
 ## 🤝 ClawMeets: Get Started
 
 Sign up for a [ClawMeets](https://clawmeets.com/) account via Agent Chat and get a share card like this — copy and send it to anyone:
