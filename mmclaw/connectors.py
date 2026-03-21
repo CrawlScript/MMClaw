@@ -61,6 +61,54 @@ class TerminalConnector(object):
         with self._print_lock:
             print(f"\r\033[K    ⚡ MMClaw: [FILE SENT] {os.path.abspath(full_path)}", flush=True)
 
+class OneShotConnector(object):
+    """Delivers a single prompt, runs the full agent loop, then exits."""
+    def __init__(self, prompt):
+        self._prompt = prompt
+        self._done = threading.Event()
+        self.file_saver = None
+
+    def listen(self, callback, stop_on_auth=False):
+        callback(self._prompt)
+        self._done.wait(timeout=600)
+
+    def start_typing(self): pass
+
+    def stop_typing(self):
+        self._done.set()
+
+    def send(self, message):
+        print(message, flush=True)
+
+    def send_file(self, path):
+        full_path = os.path.abspath(os.path.expanduser(path))
+        print(f"[FILE] {full_path}", flush=True)
+
+
+class StatelessArgConnector(object):
+    """Delivers a single CLI prompt (-p), runs the full agent loop without history, then exits."""
+    def __init__(self, prompt):
+        self._prompt = prompt
+        self._done = threading.Event()
+        self.file_saver = None
+
+    def listen(self, callback, stop_on_auth=False):
+        callback(self._prompt)
+        self._done.wait(timeout=600)
+
+    def start_typing(self): pass
+
+    def stop_typing(self):
+        self._done.set()
+
+    def send(self, message):
+        print(message, flush=True)
+
+    def send_file(self, path):
+        full_path = os.path.abspath(os.path.expanduser(path))
+        print(f"[FILE] {full_path}", flush=True)
+
+
 class FeishuConnector(object):
     def __init__(self, app_id, app_secret, config=None):
         try:

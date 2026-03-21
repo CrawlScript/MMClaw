@@ -8,7 +8,7 @@ import base64
 import time
 from .config import ConfigManager
 from .kernel import MMClaw
-from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector, QQBotConnector
+from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector, QQBotConnector, StatelessArgConnector
 
 def run_setup(existing_config=None):
     
@@ -440,6 +440,7 @@ def main():
     parser.add_argument("subcommand", nargs="?", help="Subcommand (e.g. install)")
     parser.add_argument("skill_path", nargs="?", help="Path to skill directory")
     parser.add_argument("-w", "--workspace", help="Workspace directory (default: ~/.mmclaw)")
+    parser.add_argument("-p", "--prompt", help="Run a single prompt without history and exit (stateless arg mode)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--force", action="store_true", help="Force install, skip confirmation prompts")
     args = parser.parse_args()
@@ -547,27 +548,33 @@ def main():
     if not config: config, _ = run_setup()
     config["debug"] = args.debug
 
-    mode = config.get("connector_type")
-    connectors_config = config.get("connectors", {})
-    if mode == "telegram":
-        tg = connectors_config.get("telegram", {})
-        connector = TelegramConnector(tg.get("token"), tg.get("authorized_user_id", 0))
-    elif mode == "whatsapp": connector = WhatsAppConnector(config=config)
-    elif mode == "feishu":
-        fs = connectors_config.get("feishu", {})
-        connector = FeishuConnector(fs.get("app_id"), fs.get("app_secret"), config=config)
-    elif mode == "qqbot":
-        qq = connectors_config.get("qqbot", {})
-        connector = QQBotConnector(qq.get("app_id"), qq.get("app_secret"), config=config)
-    else: connector = TerminalConnector()
+    use_stateless = bool(args.prompt)
+
+    if use_stateless:
+        connector = StatelessArgConnector(args.prompt)
+        mode = "stateless"
+    else:
+        mode = config.get("connector_type")
+        connectors_config = config.get("connectors", {})
+        if mode == "telegram":
+            tg = connectors_config.get("telegram", {})
+            connector = TelegramConnector(tg.get("token"), tg.get("authorized_user_id", 0))
+        elif mode == "whatsapp": connector = WhatsAppConnector(config=config)
+        elif mode == "feishu":
+            fs = connectors_config.get("feishu", {})
+            connector = FeishuConnector(fs.get("app_id"), fs.get("app_secret"), config=config)
+        elif mode == "qqbot":
+            qq = connectors_config.get("qqbot", {})
+            connector = QQBotConnector(qq.get("app_id"), qq.get("app_secret"), config=config)
+        else: connector = TerminalConnector()
 
     engine_type = config.get("engine_type", "openai")
     active_engine = config.get("engines", {}).get(engine_type, {})
     if not active_engine.get("api_key"):
         print(f"\n[❌] API Key missing for {engine_type}. Run 'mmclaw config'.")
         return
-    
-    app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(mode=mode, config=config))
+
+    app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(mode=mode, config=config), use_stateless_arg_connector=use_stateless)
     app.run(stop_on_auth=(args.command == "config"))
 
 if __name__ == "__main__":

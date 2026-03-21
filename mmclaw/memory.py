@@ -39,6 +39,37 @@ class BaseMemory(object):
             self.history[0]["content"] = prompt
 
 
+class StatelessMemory(object):
+    """In-memory only. No session files, no disk I/O. Used for stateless arg mode (-p)."""
+    def __init__(self, system_prompt):
+        self.system_prompt = system_prompt
+        self.history = [{"role": "system", "content": system_prompt}]
+
+    def get_all(self):
+        return list(self.history)
+
+    def add(self, role, content):
+        self.history.append({"role": role, "content": content})
+
+    def update_system_prompt(self, prompt):
+        self.system_prompt = prompt
+        self.history[0]["content"] = prompt
+
+    def save_file(self, filename: str, data: bytes) -> str:
+        import tempfile
+        path = os.path.join(tempfile.gettempdir(), filename)
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
+    def reset(self):
+        self.history = [{"role": "system", "content": self.system_prompt}]
+
+    def global_memory_add(self, text): return "Memory not persisted in stateless mode."
+    def global_memory_list(self): return "No global memories in stateless mode."
+    def global_memory_delete(self, indices): return "Memory not persisted in stateless mode."
+
+
 class FileMemory(BaseMemory):
     SESSIONS_DIR = None
     GLOBAL_MEMORY_FILE = None

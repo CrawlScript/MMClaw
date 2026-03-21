@@ -462,6 +462,12 @@ class ConfigManager(object):
                 "Formatting Guidelines: Use WhatsApp-specific formatting: *bold*, _italic_, ~strikethrough~, "
                 "and ```monospace```. Keep messages relatively concise as they are read on mobile.\n"
             )
+        elif mode == "stateless":
+            interface_context += (
+                "You are running in non-interactive (stateless) mode triggered by a CLI prompt. "
+                "IMPORTANT: Do NOT ask the user for clarification or confirmation. Make reasonable assumptions and proceed autonomously to complete the task fully.\n"
+                "Formatting Guidelines: Use plain text for console output. This does not restrict file content or task output.\n"
+            )
         else:
             interface_context += (
                 "Formatting Guidelines: Use plain text for the terminal. Use simple ASCII characters "

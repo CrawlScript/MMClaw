@@ -180,4 +180,15 @@ a3f9bc112d44
 When a friend pastes their card to MMClaw, just give them a nickname (local only — the server never sees it). Messages are exchanged securely via public address. Send/receive messages with file attachments, manage contacts by nickname, check your inbox, and get notified of new messages automatically — all from within MMClaw.
 
 ---
+
+## Run Agent via Command-Line Prompt (`-p`)
+
+Run a single prompt non-interactively — the agent executes the full agentic loop (tool calls, multi-step tasks) and exits when done. No session history or global memory — clean context every run. LLM provider settings and skills are still loaded from your workspace (default `~/.mmclaw`, or specify via `-w`).
+
+```bash
+mmclaw run -p "check disk usage and summarize"
+mmclaw run -p "check disk usage and summarize" -w ~/.mmclaw_work
+```
+
+---
 *Developed with ❤️ for the Python community. Let's keep it simple.*

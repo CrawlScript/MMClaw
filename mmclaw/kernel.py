@@ -13,7 +13,7 @@ from pathlib import Path
 from .providers import Engine
 from .tools import ShellTool, AsyncShellTool, FileTool, TimerTool, SessionTool, UpgradeTool, BrowserTool
 from .config import _find_file_icase
-from .memory import FileMemory
+from .memory import FileMemory, StatelessMemory
 from .watcher import WatcherManager
 
 
@@ -302,29 +302,31 @@ class CronManager:
 
 
 class MMClaw(object):
-    def __init__(self, config, connector, system_prompt):
+    def __init__(self, config, connector, system_prompt, use_stateless_arg_connector=False):
         self.config = config
         self.engine = Engine(config)
         self.connector = connector
-        self.memory = FileMemory(system_prompt)
+        self.memory = StatelessMemory(system_prompt) if use_stateless_arg_connector else FileMemory(system_prompt)
         self.connector.file_saver = self.memory.save_file
         self.chat_queue = queue.Queue()
         self.heartbeat_queue = queue.Queue()
         self.cron_queue = queue.Queue()
         self.debug = config.get("debug", False)
+        self.use_stateless_arg_connector = use_stateless_arg_connector
 
         threading.Thread(target=self._worker, args=(self.chat_queue, "chat"), daemon=True).start()
         threading.Thread(target=self._worker, args=(self.heartbeat_queue, "heartbeat"), daemon=True).start()
         threading.Thread(target=self._worker, args=(self.cron_queue, "cron"), daemon=True).start()
 
-        self.heartbeat = HeartbeatManager(self.heartbeat_queue, self.connector)
-        self.heartbeat.start()
+        if not use_stateless_arg_connector:
+            self.heartbeat = HeartbeatManager(self.heartbeat_queue, self.connector)
+            self.heartbeat.start()
 
-        self.cron = CronManager(self.cron_queue)
-        self.cron.start()
+            self.cron = CronManager(self.cron_queue)
+            self.cron.start()
 
-        self.watcher = WatcherManager(self.chat_queue)
-        self.watcher.start()
+            self.watcher = WatcherManager(self.chat_queue)
+            self.watcher.start()
 
         # /stop support
         self._stop_event  = threading.Event()
@@ -466,7 +468,10 @@ class MMClaw(object):
                 self._stop_event.clear()
                 silent_tools   = user_text.startswith("[WATCHER:")
                 silent_content = False
-                self.memory.add("user", user_text)
+                if self.use_stateless_arg_connector:
+                    history = [{"role": "user", "content": user_text}]
+                else:
+                    self.memory.add("user", user_text)
 
             self.connector.start_typing()
             try:
@@ -480,7 +485,8 @@ class MMClaw(object):
                     new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
                     self.memory.update_system_prompt(new_prompt)
 
-                    ask_messages = [self.memory.get_all()[0]] + history if is_background else self.memory.get_all()
+                    use_local_history = is_background or self.use_stateless_arg_connector
+                    ask_messages = [self.memory.get_all()[0]] + history if use_local_history else self.memory.get_all()
 
                     if is_background:
                         response_msg = self.engine.ask(ask_messages)
@@ -488,7 +494,7 @@ class MMClaw(object):
                         response_msg = self._ask_with_stop(ask_messages)
                     raw_text = response_msg.get("content", "")
 
-                    if is_background:
+                    if use_local_history:
                         history.append({"role": "assistant", "content": raw_text})
                     else:
                         self.memory.add("assistant", raw_text)
@@ -499,7 +505,7 @@ class MMClaw(object):
                         if json_retries_left > 0:
                             json_retries_left -= 1
                             correction = "Your response was not valid JSON. Please respond with valid JSON only."
-                            if is_background:
+                            if use_local_history:
                                 history.append({"role": "user", "content": correction})
                             else:
                                 self.memory.add("user", correction)
@@ -626,7 +632,7 @@ class MMClaw(object):
                         if self.debug:
                             print(f"\n    [Tool Output: {name}]\n    {result}\n")
                         tool_output = f"Tool Output ({name}):\n{result}"
-                        if is_background:
+                        if use_local_history:
                             history.append({"role": "user", "content": tool_output})
                         else:
                             self.memory.add("user", tool_output)
@@ -651,7 +657,7 @@ class MMClaw(object):
             self.memory.reset()
             self.connector.send("✨ Session reset! Starting fresh.")
             return
-        if random.random() < 0.15:
+        if not self.use_stateless_arg_connector and random.random() < 0.15:
             self.connector.send("💡 Tip: type /stop at any time to cancel the current job.")
         self.chat_queue.put(text)
 
