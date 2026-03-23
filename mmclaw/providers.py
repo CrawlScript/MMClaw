@@ -59,7 +59,7 @@ class Engine(object):
         self.model = engine_config["model"]
         self.debug = config.get("debug", False)
         self.account_id = engine_config.get("account_id")
-        self.stream = True  # Set to True externally to test streaming mode
+        self.stream = config.get("stream", True)
         
         # Correct URL for Codex backend-api
         if self.engine_type == "codex":

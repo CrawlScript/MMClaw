@@ -252,6 +252,18 @@ def run_setup(existing_config=None):
             else:
                 engine_config["model"] = ask("Enter Model Name", "model", "llama3", nested_engine=engine_id)
 
+            # Request Mode
+            print("\nRequest Mode:")
+            print("1. Streaming (default)")
+            print("2. Blocking (non-streaming)")
+            current_stream = config.get("stream", True)
+            mode_choice = input(f"Choice (1 or 2) [Current: {'1' if current_stream else '2'}]: ").strip()
+            if mode_choice == "2":
+                config["stream"] = False
+            elif mode_choice == "1":
+                config["stream"] = True
+            # else: keep current value
+
             break  # Exit provider selection loop
 
     # 2. Mode Selection
