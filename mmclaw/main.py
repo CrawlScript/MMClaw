@@ -586,7 +586,8 @@ def main():
         print(f"\n[❌] API Key missing for {engine_type}. Run 'mmclaw config'.")
         return
 
-    app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(mode=mode, config=config), use_stateless_arg_connector=use_stateless)
+    ConfigManager.mode = mode
+    app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(config=config), use_stateless_arg_connector=use_stateless)
     app.run(stop_on_auth=(args.command == "config"))
 
 if __name__ == "__main__":

@@ -209,6 +209,8 @@ class SkillManager(object):
         return skills_text
 
 class ConfigManager(object):
+    mode = "terminal"
+
     BASE_SYSTEM_PROMPT = (
         "You are MMClaw, an autonomous AI agent. "
         "You MUST always respond with a SINGLE valid JSON object. "
@@ -231,44 +233,7 @@ class ConfigManager(object):
         "- file_read(path)\n"
         "- file_write(path, content)\n"
         "- file_upload(path)\n"
-        "- wait(seconds)\n"
-        "- reset_session() Use this when the user asks for a 'new session', 'fresh start', or to 'clear history'.\n"
-        "- upgrade() Upgrades MMClaw to the latest version via pip and restarts the process. Use when the user asks to upgrade or update MMClaw.\n"
-        f"- memory_add(memory): Saves a fact to global memory (persisted across all sessions). Max {MAX_MEMORY_ENTRY_CHARS} chars per entry, {MAX_TOTAL_MEMORY_CHARS} chars total. Keep each memory as short as possible while preserving the key information — prefer dense, keyword-style facts over full sentences.\n"
-        "- memory_list(): Lists all global memories with their indices.\n"
-        "- memory_delete(indices): Deletes one or more global memories by index. Pass a single int or a list of ints (e.g. [0, 2]). Indices are based on memory_list output. Always pass all indices to delete in one call to avoid index shifting.\n\n"
-        "IMPORTANT: For long-running or blocking commands (e.g. starting a server, running ngrok, or any process "
-        "that does not exit on its own), you MUST use 'shell_async'. "
-        "Using 'shell_execute' for these will cause the agent to hang.\n\n"
-        "IMPORTANT: When creating files and no destination path is specified by the user, always write to the "
-        "system temp directory. The agent's working directory is an internal path with no meaning to the user.\n\n"
-        "[HEARTBEAT MESSAGES]\n"
-        "If a message starts with [HEARTBEAT: skill_name], it is a scheduled system trigger — not from the user. "
-        "Follow the instructions inside the message. "
-        "Only set a non-empty \"content\" in the FINAL response if there is something worth reporting to the user. "
-        "If nothing to report, set \"content\" to \"\". Do not mention the heartbeat mechanism to the user.\n"
-        "If a message starts with [HEARTBEAT_DISCOVER: skill_name], a new skill with a heartbeat was found. "
-        "Read the instructions, choose a sensible interval_seconds (minimum 10), update the heartbeat-config.json file. "
-        "Set \"content\" to \"\" in every response. Do NOT send any message to the user.\n"
-        "[CRON JOBS]\n"
-        "If a message starts with [CRON: job_name], it is a scheduled cron trigger — not from the user. "
-        "Follow the instructions inside the message. "
-        "Only set a non-empty \"content\" in the FINAL response when there is a meaningful conclusion to report — skip intermediate steps. "
-        "When you do output content, prefix it with ⏰ so the user knows it is a scheduled task.\n"
-        "Cron tools:\n"
-        "- cron_create(name, cron, prompt): Create a cron job. 'name' is a short identifier. "
-        "'cron' supports two formats: "
-        "5-field (minute-level): 'minute hour day month weekday' (e.g. '*/30 * * * *' for every 30 min, '0 9 * * 1-5' for weekdays at 9am); "
-        "6-field (second-level): 'second minute hour day month weekday' (e.g. '*/10 * * * * *' for every 10 seconds). "
-        "Convert the user's natural language schedule to the appropriate cron expression. "
-        "'prompt' is the instruction to execute each time the job fires.\n"
-        "- cron_delete(indices): Delete one or more cron jobs by index. Pass a single int or a list of ints (e.g. [0, 2]). Indices are based on cron_list output. Always pass all indices in one call to avoid index shifting.\n"
-        "- cron_list(): List all active cron jobs with their indices.\n\n"
-        "If a message starts with [WATCHER: skill_name], it is an event notification from a background watcher — not from the user. "
-        "If you have not already read the full instructions for that skill during this session, you MUST use file_read() to read the skill's path (found in the SKILLS SECTION) before taking any action. "
-        "IMPORTANT: If the notification provides information that should be shown to the user (like an incoming message or alert), you MUST show that information in your FIRST response via the \"content\" field. "
-        "Only use a brief acknowledgment if the notification contains no data to display. "
-        "On subsequent tool-call iterations, only set \"content\" if there is something new worth reporting."
+        "- wait(seconds)\n\n"
     )
 
     DEFAULT_CONFIG = {
@@ -442,7 +407,84 @@ class ConfigManager(object):
         print(f"[*] Config saved to {cls.CONFIG_FILE}")
 
     @classmethod
-    def get_full_prompt(cls, mode="terminal", config=None):
+    def _get_tool_notices_prompt(cls):
+        return (
+            "IMPORTANT: For long-running or blocking commands (e.g. starting a server, running ngrok, or any process "
+            "that does not exit on its own), you MUST use 'shell_async'. "
+            "Using 'shell_execute' for these will cause the agent to hang.\n\n"
+            "IMPORTANT: When creating files and no destination path is specified by the user, always write to the "
+            "system temp directory. The agent's working directory is an internal path with no meaning to the user.\n\n"
+        )
+
+    @classmethod
+    def _get_memory_tools_prompt(cls):
+        if cls.mode == "stateless":
+            return ""
+        return (
+            f"- memory_add(memory): Saves a fact to global memory (persisted across all sessions). Max {MAX_MEMORY_ENTRY_CHARS} chars per entry, {MAX_TOTAL_MEMORY_CHARS} chars total. Keep each memory as short as possible while preserving the key information — prefer dense, keyword-style facts over full sentences.\n"
+            "- memory_list(): Lists all global memories with their indices.\n"
+            "- memory_delete(indices): Deletes one or more global memories by index. Pass a single int or a list of ints (e.g. [0, 2]). Indices are based on memory_list output. Always pass all indices to delete in one call to avoid index shifting.\n\n"
+        )
+
+    @classmethod
+    def _get_session_tools_prompt(cls):
+        if cls.mode == "stateless":
+            return ""
+        return (
+            "- reset_session() Use this when the user asks for a 'new session', 'fresh start', or to 'clear history'.\n"
+            "- upgrade() Upgrades MMClaw to the latest version via pip and restarts the process. Use when the user asks to upgrade or update MMClaw.\n"
+        )
+
+    @classmethod
+    def _get_heartbeat_prompt(cls):
+        if cls.mode == "stateless":
+            return ""
+        return (
+            "[HEARTBEAT MESSAGES]\n"
+            "If a message starts with [HEARTBEAT: skill_name], it is a scheduled system trigger — not from the user. "
+            "Follow the instructions inside the message. "
+            "Only set a non-empty \"content\" in the FINAL response if there is something worth reporting to the user. "
+            "If nothing to report, set \"content\" to \"\". Do not mention the heartbeat mechanism to the user.\n"
+            "If a message starts with [HEARTBEAT_DISCOVER: skill_name], a new skill with a heartbeat was found. "
+            "Read the instructions, choose a sensible interval_seconds (minimum 10), update the heartbeat-config.json file. "
+            "Set \"content\" to \"\" in every response. Do NOT send any message to the user.\n"
+        )
+
+    @classmethod
+    def _get_cron_prompt(cls):
+        if cls.mode == "stateless":
+            return ""
+        return (
+            "[CRON JOBS]\n"
+            "If a message starts with [CRON: job_name], it is a scheduled cron trigger — not from the user. "
+            "Follow the instructions inside the message. "
+            "Only set a non-empty \"content\" in the FINAL response when there is a meaningful conclusion to report — skip intermediate steps. "
+            "When you do output content, prefix it with ⏰ so the user knows it is a scheduled task.\n"
+            "Cron tools:\n"
+            "- cron_create(name, cron, prompt): Create a cron job. 'name' is a short identifier. "
+            "'cron' supports two formats: "
+            "5-field (minute-level): 'minute hour day month weekday' (e.g. '*/30 * * * *' for every 30 min, '0 9 * * 1-5' for weekdays at 9am); "
+            "6-field (second-level): 'second minute hour day month weekday' (e.g. '*/10 * * * * *' for every 10 seconds). "
+            "Convert the user's natural language schedule to the appropriate cron expression. "
+            "'prompt' is the instruction to execute each time the job fires.\n"
+            "- cron_delete(indices): Delete one or more cron jobs by index. Pass a single int or a list of ints (e.g. [0, 2]). Indices are based on cron_list output. Always pass all indices in one call to avoid index shifting.\n"
+            "- cron_list(): List all active cron jobs with their indices.\n\n"
+        )
+
+    @classmethod
+    def _get_watcher_prompt(cls):
+        if cls.mode == "stateless":
+            return ""
+        return (
+            "If a message starts with [WATCHER: skill_name], it is an event notification from a background watcher — not from the user. "
+            "If you have not already read the full instructions for that skill during this session, you MUST use file_read() to read the skill's path (found in the SKILLS SECTION) before taking any action. "
+            "IMPORTANT: If the notification provides information that should be shown to the user (like an incoming message or alert), you MUST show that information in your FIRST response via the \"content\" field. "
+            "Only use a brief acknowledgment if the notification contains no data to display. "
+            "On subsequent tool-call iterations, only set \"content\" if there is something new worth reporting."
+        )
+
+    @classmethod
+    def get_full_prompt(cls, config=None):
         """Combine base prompt with skills and interface context.
 
         Note: sync_skills should be called once at startup, not here,
@@ -451,18 +493,18 @@ class ConfigManager(object):
         if config is None:
             config = cls.load() or {}
 
-        interface_context = f"\n\n[INTERFACE CONTEXT]\nYou are currently responding via: {mode.upper()}\n"
-        if mode == "telegram":
+        interface_context = f"\n\n[INTERFACE CONTEXT]\nYou are currently responding via: {cls.mode.upper()}\n"
+        if cls.mode == "telegram":
             interface_context += (
                 "Formatting Guidelines: Use standard Markdown. You can use bold, italics, and code blocks. "
                 "Telegram supports rich media, so feel free to be expressive.\n"
             )
-        elif mode == "whatsapp":
+        elif cls.mode == "whatsapp":
             interface_context += (
                 "Formatting Guidelines: Use WhatsApp-specific formatting: *bold*, _italic_, ~strikethrough~, "
                 "and ```monospace```. Keep messages relatively concise as they are read on mobile.\n"
             )
-        elif mode == "stateless":
+        elif cls.mode == "stateless":
             interface_context += (
                 "You are running in non-interactive (stateless) mode triggered by a CLI prompt. "
                 "IMPORTANT: Do NOT ask the user for clarification or confirmation. Make reasonable assumptions and proceed autonomously to complete the task fully.\n"
@@ -523,4 +565,14 @@ class ConfigManager(object):
 
         # print("================\n" + os_context)
 
-        return cls.BASE_SYSTEM_PROMPT + os_context + workspace_context + engine_context + browser_context + interface_context + SkillManager.get_skills_prompt() + SkillManager.get_skill_kg_prompt()
+        return (
+            cls.BASE_SYSTEM_PROMPT
+            + cls._get_memory_tools_prompt()
+            + cls._get_session_tools_prompt()
+            + cls._get_tool_notices_prompt()
+            + cls._get_heartbeat_prompt()
+            + cls._get_cron_prompt()
+            + cls._get_watcher_prompt()
+            + os_context + workspace_context + engine_context + browser_context + interface_context
+            + SkillManager.get_skills_prompt() + SkillManager.get_skill_kg_prompt()
+        )

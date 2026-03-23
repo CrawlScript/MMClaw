@@ -482,7 +482,7 @@ class MMClaw(object):
 
                     # Refresh system prompt before every call to pick up new skills or context changes
                     from .config import ConfigManager
-                    new_prompt = ConfigManager.get_full_prompt(mode=self.connector.__class__.__name__.lower().replace("connector", ""))
+                    new_prompt = ConfigManager.get_full_prompt()
                     self.memory.update_system_prompt(new_prompt)
 
                     use_local_history = is_background or self.use_stateless_arg_connector
