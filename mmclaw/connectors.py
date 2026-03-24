@@ -712,7 +712,7 @@ class WeChatConnector(object):
     BOT_TYPE = "3"
     LONG_POLL_TIMEOUT_S = 38   # slightly longer than server's 35 s hold
     MAX_CONSECUTIVE_FAILURES = 3
-    CHANNEL_VERSION = "mmclaw"
+    CHANNEL_VERSION = "1.0.3"
     # UploadMediaType
     _MEDIA_IMAGE = 1
     _MEDIA_VIDEO = 2
@@ -811,7 +811,8 @@ class WeChatConnector(object):
 
         while time.time() < deadline:
             try:
-                status_url = f"{base}/ilink/bot/get_qrcode_status?qrcode={qrcode}"
+                from urllib.parse import quote as _quote
+                status_url = f"{base}/ilink/bot/get_qrcode_status?qrcode={_quote(qrcode)}"
                 r = req.get(status_url, headers={"iLink-App-ClientVersion": "1"},
                             timeout=self.LONG_POLL_TIMEOUT_S)
                 r.raise_for_status()
@@ -914,6 +915,18 @@ class WeChatConnector(object):
             item_type = item.get("type", 0)
             if item_type == 1:   # TEXT
                 text = item.get("text_item", {}).get("text", "").strip()
+                ref_msg = item.get("ref_msg")
+                if ref_msg:
+                    parts = []
+                    if ref_msg.get("title"):
+                        parts.append(ref_msg["title"])
+                    ref_item = ref_msg.get("message_item")
+                    if ref_item and ref_item.get("type") == 1:
+                        ref_text = ref_item.get("text_item", {}).get("text", "").strip()
+                        if ref_text:
+                            parts.append(ref_text)
+                    if parts:
+                        text = f"[引用: {' | '.join(parts)}]\n{text}"
                 if text and self.callback:
                     print(f"📩 WeChat: {text}")
                     threading.Thread(target=self.callback, args=(text,), daemon=True).start()
@@ -987,6 +1000,7 @@ class WeChatConnector(object):
 
         def _poll_loop():
             consecutive_failures = 0
+            next_timeout_s = self.LONG_POLL_TIMEOUT_S
             while not self._stop_event.is_set():
                 try:
                     body = {
@@ -994,11 +1008,16 @@ class WeChatConnector(object):
                         "base_info": {"channel_version": self.CHANNEL_VERSION},
                     }
                     data = self._api_post("ilink/bot/getupdates", body,
-                                          timeout=self.LONG_POLL_TIMEOUT_S + 5)
+                                          timeout=next_timeout_s + 5)
 
                     ret = data.get("ret", 0)
                     errcode = data.get("errcode", 0)
                     if ret != 0 or errcode != 0:
+                        if errcode == -14 or ret == -14:
+                            print("[!] WeChat session expired (errcode -14), pausing 1 hour...")
+                            consecutive_failures = 0
+                            self._stop_event.wait(3600)
+                            continue
                         consecutive_failures += 1
                         print(f"[!] WeChat getUpdates error: ret={ret} errcode={errcode} "
                               f"errmsg={data.get('errmsg', '')}")
@@ -1009,6 +1028,9 @@ class WeChatConnector(object):
                         continue
 
                     consecutive_failures = 0
+                    server_timeout_ms = data.get("longpolling_timeout_ms", 0)
+                    if server_timeout_ms and server_timeout_ms > 0:
+                        next_timeout_s = server_timeout_ms / 1000
                     new_buf = data.get("get_updates_buf", "")
                     if new_buf and new_buf != self._get_updates_buf:
                         self._get_updates_buf = new_buf
