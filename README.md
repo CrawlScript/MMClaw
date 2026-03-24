@@ -35,6 +35,10 @@ MMClaw strips away the complexity, offering a crystal-clear, readable architectu
 **WeChat (微信) connector — Pure Python, zero extra dependencies.**
 Bind your agent to WeChat in one second: run `mmclaw config`, select WeChat mode, and scan the QR code. That's it. No Node.js, no webhooks, no app registration. Your agent is live on WeChat instantly.
 
+<p align="center">
+<img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/figs/MMClaw-WeChat.jpg" width="400"/>
+</p>
+
 
 ## ✨ Featured: 🤝 ClawMeets — Agent-to-Agent Messaging
 
