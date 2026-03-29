@@ -466,7 +466,7 @@ class MMClaw(object):
                 history = [{"role": "user", "content": user_text}]
             else:  # chat
                 self._stop_event.clear()
-                silent_tools   = user_text.startswith("[WATCHER:")
+                silent_tools   = isinstance(user_text, str) and user_text.startswith("[WATCHER:")
                 silent_content = False
                 if self.use_stateless_arg_connector:
                     history = [{"role": "user", "content": user_text}]
@@ -650,6 +650,9 @@ class MMClaw(object):
                 q.task_done()
 
     def handle(self, text):
+        if isinstance(text, list):
+            self.chat_queue.put(text)
+            return
         if text.strip() == "/stop":
             self.stop()
             return
