@@ -281,9 +281,76 @@ def run_setup(existing_config=None):
 
             break  # Exit provider selection loop
 
-    # 2. Mode Selection
-    if not existing_config or input("\n[2/3] Configure Connector (Interaction Mode)? (y/N): ").strip().lower() == 'y':
-        print("\n[2/3] Interaction Mode")
+    # 2. Browser Configuration
+    if not existing_config or input("\n[2/3] Configure Browser? (y/N): ").strip().lower() == 'y':
+        print("\n[2/3] Browser Configuration")
+        import subprocess, sys as _sys
+        current_enabled = config.get("browser", {}).get("enabled", False)
+        enable = input(f"Enable browser automation (Playwright)? (y/N) [Current: {'enabled' if current_enabled else 'disabled'}]: ").strip().lower()
+        if "browser" not in config:
+            config["browser"] = {}
+        if enable == 'y':
+            # Step 1: playwright package
+            print("[*] Checking playwright package...")
+            r = subprocess.run([_sys.executable, "-c", "import playwright; print('OK')"], capture_output=True, timeout=10)
+            pw_ok = r.returncode == 0 and b"OK" in r.stdout
+            if pw_ok:
+                print("[✓] playwright package found.")
+            else:
+                print("[❌] playwright not installed.")
+                print('     Command:  pip install "playwright==1.58.0"')
+                if input("     Install now? (Y/n): ").strip().lower() != 'n':
+                    print("[*] Installing...")
+                    subprocess.run([_sys.executable, "-m", "pip", "install", "playwright==1.58.0"], timeout=120)
+                    r = subprocess.run([_sys.executable, "-c", "import playwright; print('OK')"], capture_output=True, timeout=10)
+                    pw_ok = r.returncode == 0 and b"OK" in r.stdout
+                    print("[✓] playwright installed." if pw_ok else "[❌] Installation failed.")
+
+            # Step 2: Chromium binaries (only if playwright is available)
+            chromium_ok = False
+            if pw_ok:
+                print("[*] Checking Chromium binaries...")
+                r2 = subprocess.run([_sys.executable, "-c",
+                    "from playwright.sync_api import sync_playwright\n"
+                    "with sync_playwright() as pw: pw.chromium.launch(headless=True).close()\n"
+                    "print('OK')"], capture_output=True, timeout=30)
+                chromium_ok = r2.returncode == 0 and b"OK" in r2.stdout
+                if chromium_ok:
+                    print("[✓] Chromium ready.")
+                else:
+                    print("[❌] Chromium binaries not found.")
+                    print("     Command:  playwright install chromium")
+                    if input("     Install now? (Y/n): ").strip().lower() != 'n':
+                        print("[*] Installing Chromium (this may take a while)...")
+                        r_inst = subprocess.run([_sys.executable, "-m", "playwright", "install", "chromium"], timeout=300)
+                        chromium_ok = r_inst.returncode == 0
+                        print("[✓] Chromium ready." if chromium_ok else "[❌] Installation failed.")
+
+            if pw_ok and chromium_ok:
+                config["browser"]["enabled"] = True
+                print("[✓] Browser enabled.")
+            else:
+                config["browser"]["enabled"] = False
+                print("[!]  Browser will remain disabled. Run 'mmclaw config' again after installing.")
+
+        if config["browser"].get("enabled"):
+            data_dir = os.path.expanduser(config["browser"].get("data_dir", "~/.mmclaw/browser_data"))
+            print(f"[*] Browser data directory: {data_dir}/chromium/")
+            chromium_dir = os.path.join(data_dir, "chromium")
+            if os.path.exists(chromium_dir):
+                if input("    Reset browser data (clears cookies and login sessions)? (y/N): ").strip().lower() == 'y':
+                    import shutil
+                    shutil.rmtree(chromium_dir)
+                    print("[✓] Browser data cleared.")
+            else:
+                print("    (No existing browser data found.)")
+        else:
+            config["browser"]["enabled"] = False
+            print("[✓] Browser disabled.")
+
+    # 3. Mode Selection
+    if not existing_config or input("\n[3/3] Configure Connector (Interaction Mode)? (y/N): ").strip().lower() == 'y':
+        print("\n[3/3] Interaction Mode")
         print(f"Current preferred mode: {config.get('connector_type', 'terminal')}")
         print("1. Terminal Mode")
         print("2. Telegram Mode")
@@ -392,86 +459,18 @@ def run_setup(existing_config=None):
             if config["connectors"]["wechat"].get("token"):
                 bound = config["connectors"]["wechat"].get("authorized_id", "")
                 hint = f" (bound user: {bound})" if bound else ""
-                reset = input(f"\n[*] An existing WeChat session was found{hint}. Reset and re-scan QR code? (y/N): ").strip().lower()
-                if reset == 'y':
+                if input(f"\n[*] Found existing WeChat session{hint}. Use this session? (Y/n): ").strip().lower() == 'n':
                     config["connectors"]["wechat"]["token"] = None
                     config["connectors"]["wechat"]["authorized_id"] = None
                     config["connectors"]["wechat"]["get_updates_buf"] = ""
                     print("[✓] WeChat session cleared.")
-                need_auth = True
+                    need_auth = True
             else:
                 need_auth = True
 
-            print("[✓] WeChat (微信) configured. A QR code will appear on next startup — scan it with WeChat to log in.")
+            print("[✓] WeChat (微信) configured. A QR code will appear — scan it with WeChat to log in.")
         elif choice == "1":
             config["connector_type"] = "terminal"
-
-    # 3. Browser Configuration
-    if not existing_config or input("\n[3/3] Configure Browser? (y/N): ").strip().lower() == 'y':
-        print("\n[3/3] Browser Configuration")
-        import subprocess, sys as _sys
-        current_enabled = config.get("browser", {}).get("enabled", False)
-        enable = input(f"Enable browser automation (Playwright)? (y/N) [Current: {'enabled' if current_enabled else 'disabled'}]: ").strip().lower()
-        if "browser" not in config:
-            config["browser"] = {}
-        if enable == 'y':
-            # Step 1: playwright package
-            print("[*] Checking playwright package...")
-            r = subprocess.run([_sys.executable, "-c", "import playwright; print('OK')"], capture_output=True, timeout=10)
-            pw_ok = r.returncode == 0 and b"OK" in r.stdout
-            if pw_ok:
-                print("[✓] playwright package found.")
-            else:
-                print("[❌] playwright not installed.")
-                print('     Command:  pip install "playwright==1.58.0"')
-                if input("     Install now? (Y/n): ").strip().lower() != 'n':
-                    print("[*] Installing...")
-                    subprocess.run([_sys.executable, "-m", "pip", "install", "playwright==1.58.0"], timeout=120)
-                    r = subprocess.run([_sys.executable, "-c", "import playwright; print('OK')"], capture_output=True, timeout=10)
-                    pw_ok = r.returncode == 0 and b"OK" in r.stdout
-                    print("[✓] playwright installed." if pw_ok else "[❌] Installation failed.")
-
-            # Step 2: Chromium binaries (only if playwright is available)
-            chromium_ok = False
-            if pw_ok:
-                print("[*] Checking Chromium binaries...")
-                r2 = subprocess.run([_sys.executable, "-c",
-                    "from playwright.sync_api import sync_playwright\n"
-                    "with sync_playwright() as pw: pw.chromium.launch(headless=True).close()\n"
-                    "print('OK')"], capture_output=True, timeout=30)
-                chromium_ok = r2.returncode == 0 and b"OK" in r2.stdout
-                if chromium_ok:
-                    print("[✓] Chromium ready.")
-                else:
-                    print("[❌] Chromium binaries not found.")
-                    print("     Command:  playwright install chromium")
-                    if input("     Install now? (Y/n): ").strip().lower() != 'n':
-                        print("[*] Installing Chromium (this may take a while)...")
-                        r_inst = subprocess.run([_sys.executable, "-m", "playwright", "install", "chromium"], timeout=300)
-                        chromium_ok = r_inst.returncode == 0
-                        print("[✓] Chromium ready." if chromium_ok else "[❌] Installation failed.")
-
-            if pw_ok and chromium_ok:
-                config["browser"]["enabled"] = True
-                print("[✓] Browser enabled.")
-            else:
-                config["browser"]["enabled"] = False
-                print("[!]  Browser will remain disabled. Run 'mmclaw config' again after installing.")
-
-        if config["browser"].get("enabled"):
-            data_dir = os.path.expanduser(config["browser"].get("data_dir", "~/.mmclaw/browser_data"))
-            print(f"[*] Browser data directory: {data_dir}/chromium/")
-            chromium_dir = os.path.join(data_dir, "chromium")
-            if os.path.exists(chromium_dir):
-                if input("    Reset browser data (clears cookies and login sessions)? (y/N): ").strip().lower() == 'y':
-                    import shutil
-                    shutil.rmtree(chromium_dir)
-                    print("[✓] Browser data cleared.")
-            else:
-                print("    (No existing browser data found.)")
-        else:
-            config["browser"]["enabled"] = False
-            print("[✓] Browser disabled.")
 
     ConfigManager.save(config)
     return config, need_auth
