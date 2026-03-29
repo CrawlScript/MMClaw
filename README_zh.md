@@ -101,7 +101,7 @@ MMClaw 允许您通过多个渠道与您的 Agent 交互：
 - **终端模式 (Terminal Mode)**: 标准交互式 CLI（默认）。
 - **Telegram 模式**: 只需通过 [@BotFather](https://t.me/botfather) 创建机器人并在设置过程中提供 Token 即可。
 - **微信 (WeChat) 模式**: 接入速度最快的连接器——扫一次码即完成绑定，无需 Node.js、无需 Webhook、无需注册应用。纯 Python 实现，官方仅提供 Node.js SDK。
-- **飞书 (Feishu) 模式**: 专门为中国用户提供支持。拥有**业内最详尽的步骤式设置指南**，利用长连接技术，无需公网 IP 或复杂的 Webhook。
+- **飞书 (Feishu) 模式**: 扫一次码即完成绑定——机器人注册、凭证获取与用户身份绑定全部自动完成，无需任何手动配置。
 - **QQ 机器人 (QQ Bot) 模式**: 原生对接 QQ 官方机器人平台。在 [q.qq.com](https://q.qq.com) 注册并创建机器人应用后，即可通过 QQ 私聊与 Agent 交互，无需公网 IP。
 - **WhatsApp 模式**: 需要 **Node.js** (推荐 v22.17.0) 来运行轻量级桥接程序。Agent 将在终端显示二维码以便扫码绑定。
 

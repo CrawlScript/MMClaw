@@ -102,7 +102,7 @@ MMClaw allows you to interact with your agent through multiple channels:
 - **Terminal Mode**: Standard interactive CLI (default).
 - **Telegram Mode**: Just create a bot via [@BotFather](https://t.me/botfather) and provide your token during setup.
 - **WeChat (微信) Mode**: The fastest setup of any connector — just scan a QR code once and you're connected. Nothing else required.
-- **Feishu (飞书) Mode**: Dedicated support for Chinese users. Features the **most detailed step-by-step setup guide** in the industry, utilizing long-connections so you don't need a public IP or complex webhooks.
+- **Feishu (飞书) Mode**: Just scan a QR code — bot registration, credentials, and user identity are all configured automatically. No manual steps required.
 - **QQ Bot (QQ机器人) Mode**: Native support for QQ's official bot platform. Register at [q.qq.com](https://q.qq.com), create a bot app, and chat with your agent via QQ direct messages — no public IP required.
 - **WhatsApp Mode**: Requires **Node.js** (v22.17.0 recommended) to run the lightweight bridge. The agent will show a QR code in your terminal for linking.
 

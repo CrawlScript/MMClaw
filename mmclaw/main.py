@@ -10,6 +10,86 @@ from .config import ConfigManager
 from .kernel import MMClaw
 from .connectors import TelegramConnector, TerminalConnector, WhatsAppConnector, FeishuConnector, QQBotConnector, WeChatConnector, StatelessArgConnector
 
+def _feishu_qr_setup():
+    """Feishu QR Code bot registration flow. Returns (app_id, app_secret, open_id) or None on failure."""
+    BASE_URL = "https://accounts.feishu.cn"
+
+    def post_registration(data):
+        body = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(
+            f"{BASE_URL}/oauth/v1/app/registration",
+            data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())
+
+    try:
+        begin_res = post_registration({
+            "action": "begin",
+            "archetype": "PersonalAgent",
+            "auth_method": "client_secret",
+            "request_user_info": "open_id"
+        })
+    except Exception as e:
+        print(f"[❌] 无法连接飞书服务器: {e}")
+        return None
+
+    qr_url = begin_res.get("verification_uri_complete", "")
+    if not qr_url:
+        print("[❌] 未获取到二维码链接。")
+        return None
+
+    interval = begin_res.get("interval", 5)
+    expire_in = begin_res.get("expire_in", 600)
+    device_code = begin_res.get("device_code", "")
+
+    try:
+        import qrcode
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        qr.print_ascii(invert=True)
+    except ImportError:
+        print(f"\n[*] 请用飞书 App 扫描以下链接对应的二维码：\n    {qr_url}\n")
+
+    print(f"[*] 等待扫码授权（有效期 {expire_in} 秒）...")
+
+    start = time.time()
+    while time.time() - start < expire_in:
+        time.sleep(interval)
+        try:
+            poll_res = post_registration({"action": "poll", "device_code": device_code})
+        except Exception:
+            continue
+
+        error = poll_res.get("error")
+        if error == "authorization_pending":
+            continue
+        elif error == "slow_down":
+            interval = min(interval + 5, 30)
+            continue
+        elif error == "access_denied":
+            print("[❌] 用户拒绝授权。")
+            return None
+        elif error == "expired_token":
+            print("[❌] 会话已过期，请重试。")
+            return None
+        elif error:
+            print(f"[❌] 授权错误: {error}")
+            return None
+
+        app_id = poll_res.get("client_id", "")
+        app_secret = poll_res.get("client_secret", "")
+        open_id = (poll_res.get("user_info") or {}).get("open_id", "")
+
+        if app_id and app_secret:
+            return app_id, app_secret, open_id
+
+    print("[❌] 扫码超时，请重试。")
+    return None
+
 def run_setup(existing_config=None):
     
     need_auth = False
@@ -341,9 +421,10 @@ def run_setup(existing_config=None):
         print("\n[3/3] Interaction Mode")
         print("1. Terminal Mode")
         print("2. Telegram Mode")
-        print("3. WhatsApp Mode (Scan QR Code)")
-        print("4. WeChat (微信) Mode (Scan QR Code)")
-        print("5. Feishu (飞书) Mode")
+        print("3. WhatsApp Mode (QR Code)")
+        print("4. WeChat (微信) Mode (QR Code)")
+        print("5. Feishu (飞书) Mode (QR Code)")
+        # print("6. Feishu (飞书) Mode (Manual)")
         print("6. QQ Bot (QQ机器人) Mode")
         current_mode = config.get('connector_type', 'terminal')
         choice = input(f"Select mode (1-6) [Current: {current_mode}]: ").strip()
@@ -352,39 +433,77 @@ def run_setup(existing_config=None):
 
         if choice == "5":
             config["connector_type"] = "feishu"
-            print("\n--- 🛠 Feishu (飞书) Setup ---")
+            if "feishu" not in config["connectors"]:
+                config["connectors"]["feishu"] = {}
+            print("\n--- 🛠 Feishu (飞书) Setup (QR Code) ---")
 
-            print('[*] 第一步：请登录飞书开放平台 (https://open.feishu.cn/app) 并创建一个"企业自建应用"。')
-            input("    完成后请按回车键 continue...")
-            print('[*] 第二步：在"添加应用能力"中，点击机器人下方的"添加"按钮。')
-            input("    完成后请按回车键 continue...")
-
-            print("[*] 第三步：在\"凭证与基础信息\"页面，获取并输入以下信息：")
-            config["connectors"]["feishu"]["app_id"] = ask("App ID", "app_id", None, nested_connector="feishu")
-            config["connectors"]["feishu"]["app_secret"] = ask("App Secret", "app_secret", None, nested_connector="feishu")
-
-            print('[*] 第四步：左侧菜单栏选择"权限管理"，点击"批量导入/导出权限"，复制并粘贴以下 JSON：')
-            print("\n{\n  \"scopes\": {\n    \"tenant\": [\n      \"contact:user.base:readonly\",\n      \"im:chat\",\n      \"im:chat:read\",\n      \"im:chat:update\",\n      \"im:message\",\n      \"im:message.group_at_msg:readonly\",\n      \"im:message.p2p_msg:readonly\",\n      \"im:message:send_as_bot\",\n      \"im:resource\"\n    ],\n    \"user\": []\n  }\n}\n")
-            print('    点击"下一步，确认新增权限"，然后点击"申请开通"，最后点击"确认"。')
-            input("    完成后请按回车键 continue...")
-            print('\n[*] 第五步：在飞书平台左侧菜单选择"事件与回调"。')
-            print('    为了能够开启"长连接"，请在另一个终端运行以下命令（已自动填充您的 ID 和 Secret）：')
-            print(f"\n    python -c \"import lark_oapi as lark; h=lark.EventDispatcherHandler.builder('','').build(); c=lark.ws.Client(app_id='{config['connectors']['feishu']['app_id']}', app_secret='{config['connectors']['feishu']['app_secret']}', event_handler=h); c.start()\"\n")
-            print('    运行后，返回网页，左侧菜单栏选择"事件与回调"，在"事件配置-订阅方式"中选择"使用长连接接收事件"，然后点击"保存"。')
-            input("    完成后（且已关闭上述临时终端）请按回车键 continue...")
-            print('[*] 第六步：在"事件与回调"页面，点击"添加事件"，搜索并添加"接收消息 (im.message.receive_v1)"。')
-            input("    完成后请按回车键 continue...")
-            print('[*] 第七步：左侧菜单选择"版本管理与发布"，点击"创建版本"，输入相关信息，保存后确认发布。')
-            input("    完成后请按回车键 continue...")
-
-            if config["connectors"]["feishu"].get("authorized_id"):
-                reset = input(f"\n[*] 身份已绑定 ({config['connectors']['feishu']['authorized_id']})。是否重置并进行新的 6 位验证码验证？ (y/N): ").strip().lower()
-                if reset == 'y':
+            if config["connectors"]["feishu"].get("app_id"):
+                bound = config["connectors"]["feishu"].get("authorized_id", "")
+                hint = f" (已绑定用户: {bound})" if bound else ""
+                if input(f"\n[*] 检测到已有飞书配置 (App ID: {config['connectors']['feishu']['app_id']}{hint})。是否复用？(Y/n): ").strip().lower() != 'n':
+                    if not bound:
+                        need_auth = True
+                    result = None
+                else:
+                    config["connectors"]["feishu"]["app_id"] = None
+                    config["connectors"]["feishu"]["app_secret"] = None
                     config["connectors"]["feishu"]["authorized_id"] = None
-                    print("[✓] 身份已重置。")
-                    need_auth = True
+                    print("[*] 请用飞书 App 扫描二维码，完成机器人创建与授权。")
+                    result = _feishu_qr_setup()
             else:
-                need_auth = True
+                print("[*] 请用飞书 App 扫描二维码，完成机器人创建与授权。")
+                result = _feishu_qr_setup()
+            if not result:
+                print("[!] QR 码授权失败，请重试。")
+            else:
+                app_id, app_secret, open_id = result
+                config["connectors"]["feishu"]["app_id"] = app_id
+                config["connectors"]["feishu"]["app_secret"] = app_secret
+                print(f"\n[✓] App ID:     {app_id}")
+                print(f"[✓] App Secret: {app_secret[:4]}{'*' * max(0, len(app_secret) - 4)}")
+                if open_id:
+                    config["connectors"]["feishu"]["authorized_id"] = open_id
+                    print(f"[✓] 用户身份已自动绑定: {open_id}")
+                else:
+                    need_auth = True
+
+                print("[✓] 设置完成，无需额外配置，直接启动即可。")
+
+        # elif choice == "6":  # Feishu Manual Mode (kept for reference, use QR Code mode instead)
+        #     config["connector_type"] = "feishu"
+        #     print("\n--- 🛠 Feishu (飞书) Setup (Manual) ---")
+        #
+        #     print('[*] 第一步：请登录飞书开放平台 (https://open.feishu.cn/app) 并创建一个"企业自建应用"。')
+        #     input("    完成后请按回车键 continue...")
+        #     print('[*] 第二步：在"添加应用能力"中，点击机器人下方的"添加"按钮。')
+        #     input("    完成后请按回车键 continue...")
+        #
+        #     print("[*] 第三步：在\"凭证与基础信息\"页面，获取并输入以下信息：")
+        #     config["connectors"]["feishu"]["app_id"] = ask("App ID", "app_id", None, nested_connector="feishu")
+        #     config["connectors"]["feishu"]["app_secret"] = ask("App Secret", "app_secret", None, nested_connector="feishu")
+        #
+        #     print('[*] 第四步：左侧菜单栏选择"权限管理"，点击"批量导入/导出权限"，复制并粘贴以下 JSON：')
+        #     print("\n{\n  \"scopes\": {\n    \"tenant\": [\n      \"contact:user.base:readonly\",\n      \"im:chat\",\n      \"im:chat:read\",\n      \"im:chat:update\",\n      \"im:message\",\n      \"im:message.group_at_msg:readonly\",\n      \"im:message.p2p_msg:readonly\",\n      \"im:message:send_as_bot\",\n      \"im:resource\"\n    ],\n    \"user\": []\n  }\n}\n")
+        #     print('    点击"下一步，确认新增权限"，然后点击"申请开通"，最后点击"确认"。')
+        #     input("    完成后请按回车键 continue...")
+        #     print('\n[*] 第五步：在飞书平台左侧菜单选择"事件与回调"。')
+        #     print('    为了能够开启"长连接"，请在另一个终端运行以下命令（已自动填充您的 ID 和 Secret）：')
+        #     print(f"\n    python -c \"import lark_oapi as lark; h=lark.EventDispatcherHandler.builder('','').build(); c=lark.ws.Client(app_id='{config['connectors']['feishu']['app_id']}', app_secret='{config['connectors']['feishu']['app_secret']}', event_handler=h); c.start()\"\n")
+        #     print('    运行后，返回网页，左侧菜单栏选择"事件与回调"，在"事件配置-订阅方式"中选择"使用长连接接收事件"，然后点击"保存"。')
+        #     input("    完成后（且已关闭上述临时终端）请按回车键 continue...")
+        #     print('[*] 第六步：在"事件与回调"页面，点击"添加事件"，搜索并添加"接收消息 (im.message.receive_v1)"。')
+        #     input("    完成后请按回车键 continue...")
+        #     print('[*] 第七步：左侧菜单选择"版本管理与发布"，点击"创建版本"，输入相关信息，保存后确认发布。')
+        #     input("    完成后请按回车键 continue...")
+        #
+        #     if config["connectors"]["feishu"].get("authorized_id"):
+        #         reset = input(f"\n[*] 身份已绑定 ({config['connectors']['feishu']['authorized_id']})。是否重置并进行新的 6 位验证码验证？ (y/N): ").strip().lower()
+        #         if reset == 'y':
+        #             config["connectors"]["feishu"]["authorized_id"] = None
+        #             print("[✓] 身份已重置。")
+        #             need_auth = True
+        #     else:
+        #         need_auth = True
         elif choice == "2":
             config["connector_type"] = "telegram"
             print("\n--- 🛠 Telegram Setup ---")
