@@ -48,8 +48,10 @@ def run_setup(existing_config=None):
             {"id": "google", "name": "Google Gemini", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"]},
             {"id": "deepseek", "name": "DeepSeek", "url": "https://api.deepseek.com", "models": ["deepseek-chat", "deepseek-reasoner"]},
             {"id": "openrouter", "name": "OpenRouter", "url": "https://openrouter.ai/api/v1", "models": ["anthropic/claude-3.5-sonnet", "google/gemini-flash-1.5"]},
-            {"id": "kimi", "name": "Kimi (Moonshot AI)", "url": "https://api.moonshot.cn/v1", "models": ["kimi-k2.5"]},
-            {"id": "minimax", "name": "MiniMax", "url": None, "urls": [{"label": "Global", "url": "https://api.minimax.io/v1"}, {"label": "China", "url": "https://api.minimaxi.com/v1"}], "models": ["MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.1", "MiniMax-M2.1-highspeed", "MiniMax-M2"]},
+            {"id": "kimi_ai", "name": "Kimi Global (Moonshot AI)", "url": "https://api.moonshot.ai/v1", "models": ["kimi-k2.5"]},
+            {"id": "kimi_cn", "name": "Kimi China (Moonshot AI)", "url": "https://api.moonshot.cn/v1", "models": ["kimi-k2.5"]},
+            {"id": "minimax_io", "name": "MiniMax Global", "url": "https://api.minimax.io/v1", "models": ["MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.1", "MiniMax-M2.1-highspeed", "MiniMax-M2"]},
+            {"id": "minimax_cn", "name": "MiniMax China", "url": "https://api.minimaxi.com/v1", "models": ["MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.1", "MiniMax-M2.1-highspeed", "MiniMax-M2"]},
         ]
 
         while True:
@@ -113,20 +115,6 @@ def run_setup(existing_config=None):
 
             if engine_id not in config["engines"]:
                 config["engines"][engine_id] = {}
-
-            if provider.get("urls"):
-                print(f"\nSelect {provider['name']} Region:")
-                for i, u in enumerate(provider["urls"], 1):
-                    print(f"{i}. {u['label']} ({u['url']})")
-                current_url = config["engines"][engine_id].get("base_url", "")
-                current_r = 1
-                for i, u in enumerate(provider["urls"], 1):
-                    if u["url"] == current_url:
-                        current_r = i
-                        break
-                r = input(f"Choice (1-{len(provider['urls'])}) [Current: {current_r}]: ").strip()
-                idx_r = (int(r) - 1) if r.isdigit() and 1 <= int(r) <= len(provider["urls"]) else (current_r - 1)
-                provider = {**provider, "url": provider["urls"][idx_r]["url"]}
 
             if engine_id == "codex":
                 CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
@@ -262,7 +250,7 @@ def run_setup(existing_config=None):
                     idx_m = int(m_choice)
                     if 1 <= idx_m <= len(models): engine_config["model"] = models[idx_m-1]
                     elif idx_m == len(models) + 1: engine_config["model"] = input("Enter Model Name manually: ").strip()
-                elif not m_choice and existing_config: pass
+                elif not m_choice and engine_config.get("model"): pass
                 else: engine_config["model"] = models[0]
             else:
                 engine_config["model"] = ask("Enter Model Name", "model", "llama3", nested_engine=engine_id)
@@ -351,14 +339,16 @@ def run_setup(existing_config=None):
     # 3. Mode Selection
     if not existing_config or input("\n[3/3] Configure Connector (Interaction Mode)? (y/N): ").strip().lower() == 'y':
         print("\n[3/3] Interaction Mode")
-        print(f"Current preferred mode: {config.get('connector_type', 'terminal')}")
         print("1. Terminal Mode")
         print("2. Telegram Mode")
         print("3. WhatsApp Mode (Scan QR Code)")
         print("4. WeChat (微信) Mode (Scan QR Code)")
         print("5. Feishu (飞书) Mode")
         print("6. QQ Bot (QQ机器人) Mode")
-        choice = input("Select mode (1-6) [Keep current]: ").strip()
+        current_mode = config.get('connector_type', 'terminal')
+        choice = input(f"Select mode (1-6) [Current: {current_mode}]: ").strip()
+        if not choice:
+            choice = {"terminal": "1", "telegram": "2", "whatsapp": "3", "wechat": "4", "feishu": "5", "qqbot": "6"}.get(current_mode, "1")
 
         if choice == "5":
             config["connector_type"] = "feishu"
