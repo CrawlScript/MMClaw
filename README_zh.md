@@ -119,6 +119,7 @@ MMClaw 支持多种主流 LLM 引擎：
 - **Google Gemini**: 支持 Gemini 1.5 Pro/Flash, 2.0 Flash。
 - **DeepSeek**: 支持 DeepSeek-V3, DeepSeek-R1。
 - **Kimi (Moonshot AI)**: 原生支持 Kimi k2.5。
+- **MiniMax**: 支持 MiniMax-M2 系列等多款模型，兼容 token plan。同时提供国际站（`api.minimax.io`）与国内站（`api.minimaxi.com`）两个接入点。
 - **OpenAI-Compatible**: 支持自定义 Base URL，可连接本地或第三方引擎（如 Ollama, LocalAI 等）。
 - **其他**: 支持 OpenRouter 等聚合平台。
 

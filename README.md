@@ -120,6 +120,7 @@ MMClaw supports a wide range of LLM providers:
 - **Google Gemini**: Gemini 1.5 Pro/Flash, 2.0 Flash.
 - **DeepSeek**: DeepSeek-V3, DeepSeek-R1.
 - **Kimi (Moonshot AI)**: Native support for Kimi k2.5.
+- **MiniMax**: MiniMax-M2 series and more. Supports token plan. Supports both Global (`api.minimax.io`) and China (`api.minimaxi.com`) endpoints.
 - **OpenAI-Compatible**: Customizable Base URL for local or third-party engines (Ollama, LocalAI, etc.).
 - **Others**: OpenRouter and more.
 

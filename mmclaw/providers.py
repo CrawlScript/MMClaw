@@ -161,7 +161,7 @@ class Engine(object):
         raise last_err
 
     def ask_once(self, messages, tools=None):
-        if self.engine_type in ["openai", "codex", "google", "deepseek", "openrouter", "kimi"] or self.engine_type.startswith("openai_compatible_"):
+        if self.engine_type in ["openai", "codex", "google", "deepseek", "openrouter", "co", "minimax"] or self.engine_type.startswith("openai_compatible_"):
             if self.engine_type == "codex":
                 # Responses API (Codex)
                 system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
