@@ -34,9 +34,9 @@ def set_workspace(path: Path):
     ConfigManager.CONFIG_DIR = path
     ConfigManager.CONFIG_FILE = path / "mmclaw.json"
     # Patch other modules (late imports are safe — all modules are loaded before main() calls this)
-    from .memory import FileMemory
+    from .memory import FileMemory, GlobalFileMemory
     FileMemory.SESSIONS_DIR = str(path / "memory" / "sessions")
-    FileMemory.GLOBAL_MEMORY_FILE = str(path / "memory" / "global" / "memory.jsonl")
+    GlobalFileMemory.GLOBAL_MEMORY_FILE = str(path / "memory" / "global" / "memory.jsonl")
     from .kernel import HeartbeatManager, CronManager
     HeartbeatManager.HEARTBEAT_DIR = path / "heartbeat"
     HeartbeatManager.CONFIG_FILE = path / "heartbeat" / "heartbeat-config.json"
@@ -418,8 +418,6 @@ class ConfigManager(object):
 
     @classmethod
     def _get_memory_tools_prompt(cls):
-        if cls.mode == "stateless":
-            return ""
         return (
             f"- memory_add(memory): Saves a fact to global memory (persisted across all sessions). Max {MAX_MEMORY_ENTRY_CHARS} chars per entry, {MAX_TOTAL_MEMORY_CHARS} chars total. Keep each memory as short as possible while preserving the key information — prefer dense, keyword-style facts over full sentences.\n"
             "- memory_list(): Lists all global memories with their indices.\n"
