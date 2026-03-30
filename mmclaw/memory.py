@@ -134,9 +134,38 @@ class GlobalFileMemory(BaseMemory):
 
 
 class StatelessMemory(GlobalFileMemory):
-    """In-memory session only. No session files, no disk I/O. Used for stateless arg mode (-p)."""
+    """In-memory session only. No session files, no disk I/O. Used for stateless arg mode (-p).
+    Global memory is disabled by default; pass use_global_memory=True to enable it."""
+    def __init__(self, system_prompt, use_global_memory=False):
+        super().__init__(system_prompt)
+        self._use_global_memory = use_global_memory
+        if use_global_memory:
+            print(f"[*] Global memory: {self.GLOBAL_MEMORY_FILE}")
+        else:
+            print("[*] Global memory: disabled (use --global-memory to enable)")
+
     def _get_truncation_note(self):
         return "\n... [truncated due to length limit]"
+
+    def _load_global_memories(self):
+        if not self._use_global_memory:
+            return []
+        return super()._load_global_memories()
+
+    def global_memory_add(self, text):
+        if not self._use_global_memory:
+            return "Global memory is disabled in stateless mode. Use --global-memory to enable it."
+        return super().global_memory_add(text)
+
+    def global_memory_list(self):
+        if not self._use_global_memory:
+            return "Global memory is disabled in stateless mode. Use --global-memory to enable it."
+        return super().global_memory_list()
+
+    def global_memory_delete(self, indices):
+        if not self._use_global_memory:
+            return "Global memory is disabled in stateless mode. Use --global-memory to enable it."
+        return super().global_memory_delete(indices)
 
     def add(self, role, content):
         self.history.append({"role": role, "content": content})
@@ -169,6 +198,7 @@ class FileMemory(GlobalFileMemory):
         else:
             self._start_new(system_prompt)
             print(f"[*] New session: {os.path.basename(self.session_dir)}")
+        print(f"[*] Global memory: {self.GLOBAL_MEMORY_FILE}")
 
     def _start_new(self, system_prompt):
         super().__init__(system_prompt)

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mmclaw",
-    version="0.0.81",
+    version="0.0.82",
 
     author="Jun Hu",
     author_email="hujunxianligong@gmail.com",

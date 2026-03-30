@@ -210,6 +210,7 @@ class SkillManager(object):
 
 class ConfigManager(object):
     mode = "terminal"
+    stateless_use_global_memory = False
 
     BASE_SYSTEM_PROMPT = (
         "You are MMClaw, an autonomous AI agent. "
@@ -418,6 +419,8 @@ class ConfigManager(object):
 
     @classmethod
     def _get_memory_tools_prompt(cls):
+        if cls.mode == "stateless" and not cls.stateless_use_global_memory:
+            return ""
         return (
             f"- memory_add(memory): Saves a fact to global memory (persisted across all sessions). Max {MAX_MEMORY_ENTRY_CHARS} chars per entry, {MAX_TOTAL_MEMORY_CHARS} chars total. Keep each memory as short as possible while preserving the key information — prefer dense, keyword-style facts over full sentences.\n"
             "- memory_list(): Lists all global memories with their indices.\n"

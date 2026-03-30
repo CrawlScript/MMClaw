@@ -200,6 +200,8 @@ Run a single prompt non-interactively — the agent executes the full agentic lo
 ```bash
 mmclaw run -p "check disk usage and summarize"
 mmclaw run -p "check disk usage and summarize" -w ~/.mmclaw_work
+# add --global-memory to let the agent read/write global memory shared with your interactive sessions
+mmclaw run -p "summarize my tasks and save key points to memory" --global-memory
 ```
 
 ---

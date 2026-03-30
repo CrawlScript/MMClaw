@@ -597,6 +597,7 @@ def main():
     parser.add_argument("skill_path", nargs="?", help="Path to skill directory")
     parser.add_argument("-w", "--workspace", help="Workspace directory (default: ~/.mmclaw)")
     parser.add_argument("-p", "--prompt", help="Run a single prompt without history and exit (stateless arg mode)")
+    parser.add_argument("--global-memory", action="store_true", help="Enable global memory in stateless (-p) mode")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--force", action="store_true", help="Force install, skip confirmation prompts")
     args = parser.parse_args()
@@ -706,6 +707,10 @@ def main():
 
     use_stateless = bool(args.prompt)
 
+    if args.global_memory and not use_stateless:
+        print("[❌] --global-memory can only be used with -p (stateless mode).")
+        return
+
     if use_stateless:
         connector = StatelessArgConnector(args.prompt)
         mode = "stateless"
@@ -733,7 +738,8 @@ def main():
         return
 
     ConfigManager.mode = mode
-    app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(config=config), use_stateless_arg_connector=use_stateless)
+    ConfigManager.stateless_use_global_memory = use_stateless and args.global_memory
+    app = MMClaw(config, connector, system_prompt=ConfigManager.get_full_prompt(config=config), use_stateless_arg_connector=use_stateless, stateless_use_global_memory=use_stateless and args.global_memory)
     app.run(stop_on_auth=(args.command == "config"))
 
 if __name__ == "__main__":

@@ -302,11 +302,11 @@ class CronManager:
 
 
 class MMClaw(object):
-    def __init__(self, config, connector, system_prompt, use_stateless_arg_connector=False):
+    def __init__(self, config, connector, system_prompt, use_stateless_arg_connector=False, stateless_use_global_memory=False):
         self.config = config
         self.engine = Engine(config)
         self.connector = connector
-        self.memory = StatelessMemory(system_prompt) if use_stateless_arg_connector else FileMemory(system_prompt)
+        self.memory = StatelessMemory(system_prompt, use_global_memory=stateless_use_global_memory) if use_stateless_arg_connector else FileMemory(system_prompt)
         self.connector.file_saver = self.memory.save_file
         self.chat_queue = queue.Queue()
         self.heartbeat_queue = queue.Queue()

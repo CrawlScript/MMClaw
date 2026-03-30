@@ -199,6 +199,8 @@ a3f9bc112d44
 ```bash
 mmclaw run -p "检查磁盘使用情况并汇总"
 mmclaw run -p "检查磁盘使用情况并汇总" -w ~/.mmclaw_work
+# 添加 --global-memory 可让 Agent 读写全局记忆，与交互会话共享
+mmclaw run -p "汇总我的任务并将要点存入记忆" --global-memory
 ```
 
 ---
