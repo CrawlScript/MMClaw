@@ -115,13 +115,13 @@ mmclaw config
 
 MMClaw supports a wide range of LLM providers:
 
-- **OpenAI**: GPT-4o, o1, and more.
+- **OpenAI**: All GPT models via official API.
 - **OpenAI Codex**: Premium support via **OAuth device code authentication** (no manual API key management needed).
-- **Google Gemini**: Gemini 1.5 Pro/Flash, 2.0 Flash.
+- **Google Gemini**: All Gemini models via official API.
 - **Google Gemini CLI**: Premium support via **OAuth authentication** — reuses your existing Gemini CLI login, no API key needed.
-- **DeepSeek**: DeepSeek-V3, DeepSeek-R1.
-- **Kimi (Moonshot AI)**: Native support for Kimi k2.5.
-- **MiniMax**: MiniMax-M2 series and more. Supports token plan. Supports both Global (`api.minimax.io`) and China (`api.minimaxi.com`) endpoints.
+- **DeepSeek**: All DeepSeek models via official API.
+- **Kimi (Moonshot AI)**: All Kimi models via official API.
+- **MiniMax**: All MiniMax models via official API. Supports both Global (`api.minimax.io`) and China (`api.minimaxi.com`) endpoints.
 - **OpenAI-Compatible**: Customizable Base URL for local or third-party engines (Ollama, LocalAI, etc.).
 - **Others**: OpenRouter and more.
 

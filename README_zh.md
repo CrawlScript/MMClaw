@@ -114,13 +114,13 @@ mmclaw config
 
 MMClaw 支持多种主流 LLM 引擎：
 
-- **OpenAI**: 支持 GPT-4o, o1 等全系列模型。
+- **OpenAI**: 通过官方 API 支持全系列 GPT 模型。
 - **OpenAI Codex**: 深度集成，通过 **OAuth 设备码认证** 登录（无需手动管理 API Key）。
-- **Google Gemini**: 支持 Gemini 1.5 Pro/Flash, 2.0 Flash。
+- **Google Gemini**: 通过官方 API 支持全系列 Gemini 模型。
 - **Google Gemini CLI**: 深度集成，通过 **OAuth 认证** 登录——复用已有的 Gemini CLI 登录状态，无需 API Key。
-- **DeepSeek**: 支持 DeepSeek-V3, DeepSeek-R1。
-- **Kimi (Moonshot AI)**: 原生支持 Kimi k2.5。
-- **MiniMax**: 支持 MiniMax-M2 系列等多款模型，兼容 token plan。同时提供国际站（`api.minimax.io`）与国内站（`api.minimaxi.com`）两个接入点。
+- **DeepSeek**: 通过官方 API 支持全系列 DeepSeek 模型。
+- **Kimi (Moonshot AI)**: 通过官方 API 支持全系列 Kimi 模型。
+- **MiniMax**: 通过官方 API 支持全系列 MiniMax 模型。同时提供国际站（`api.minimax.io`）与国内站（`api.minimaxi.com`）两个接入点。
 - **OpenAI-Compatible**: 支持自定义 Base URL，可连接本地或第三方引擎（如 Ollama, LocalAI 等）。
 - **其他**: 支持 OpenRouter 等聚合平台。
 
