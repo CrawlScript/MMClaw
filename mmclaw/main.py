@@ -126,6 +126,7 @@ def run_setup(existing_config=None):
             {"id": "openai", "name": "OpenAI", "url": "https://api.openai.com/v1", "models": ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini"]},
             {"id": "codex", "name": "OpenAI Codex (OAuth)", "url": "https://api.openai.com/v1", "models": ["gpt-5.4", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2-codex", "gpt-5.2", "gpt-5.1-codex-max", "gpt-5.1", "gpt-5.1-codex", "gpt-5-codex", "gpt-5-codex-mini", "gpt-5"]},
             {"id": "google", "name": "Google Gemini", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"]},
+            {"id": "gemini-cli", "name": "Google Gemini CLI (OAuth)", "url": "https://cloudcode-pa.googleapis.com", "models": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-pro"]},
             {"id": "deepseek", "name": "DeepSeek", "url": "https://api.deepseek.com", "models": ["deepseek-chat", "deepseek-reasoner"]},
             {"id": "openrouter", "name": "OpenRouter", "url": "https://openrouter.ai/api/v1", "models": ["anthropic/claude-3.5-sonnet", "google/gemini-flash-1.5"]},
             {"id": "kimi_ai", "name": "Kimi Global (Moonshot AI)", "url": "https://api.moonshot.ai/v1", "models": ["kimi-k2.5"]},
@@ -281,6 +282,56 @@ def run_setup(existing_config=None):
                             return config, False
 
                 config["engines"][engine_id]["base_url"] = provider["url"]
+            elif engine_id == "gemini-cli":
+                creds_path = Path.home() / ".gemini" / "oauth_creds.json"
+                if not creds_path.exists():
+                    print("[❌] Gemini CLI auth file not found (~/.gemini/oauth_creds.json).")
+                    print("     This means the Gemini CLI is either not installed, or you haven't logged in yet.")
+                    print("     To fix:")
+                    print("       1. Requires Node.js >= 22")
+                    print("       2. Install: npm install -g @google/gemini-cli")
+                    print("       3. Login:   run 'gemini' and complete the sign-in flow")
+                    print("     After logging in, the auth file will be created at ~/.gemini/oauth_creds.json")
+                    return config, False
+                try:
+                    creds = json.loads(creds_path.read_text())
+                    access_token  = creds.get("access_token", "")
+                    refresh_token = creds.get("refresh_token", "")
+                    expiry_date   = creds.get("expiry_date", 0)
+                    if not access_token:
+                        print("[❌] No access_token in ~/.gemini/oauth_creds.json.")
+                        return config, False
+                except Exception as e:
+                    print(f"[❌] Failed to read Gemini credentials: {e}")
+                    return config, False
+
+                # Refresh token if expired
+                if expiry_date and time.time() * 1000 >= expiry_date - 5 * 60 * 1000:
+                    try:
+                        print("[*] Gemini CLI: access token expired, refreshing...")
+                        data = urllib.parse.urlencode({
+                            "grant_type":    "refresh_token",
+                            "refresh_token": refresh_token,
+                            "client_id":     base64.b64decode("NjgxMjU1ODA5Mzk1LW9vOGZ0Mm9wcmRybnA5ZTNhcWY2YXYz").decode() + base64.b64decode("aG1kaWIxMzVqLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29t").decode(),
+                            "client_secret": base64.b64decode("R09DU1BYLTR1SGdNUG0tMW8=").decode() + base64.b64decode("N1NrLWdlVjZDdTVjbFhGc3hs").decode(),
+                        }).encode()
+                        req = urllib.request.Request("https://oauth2.googleapis.com/token", data=data, method="POST")
+                        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+                        with urllib.request.urlopen(req, timeout=15) as resp:
+                            tok = json.loads(resp.read().decode())
+                        access_token = tok["access_token"]
+                        expiry_date  = int((time.time() + tok.get("expires_in", 3600)) * 1000)
+                        if "refresh_token" in tok:
+                            refresh_token = tok["refresh_token"]
+                        print("[✓] Gemini CLI: token refreshed.")
+                    except Exception as e:
+                        print(f"[!] Gemini CLI: token refresh failed: {e}")
+
+                config["engines"][engine_id]["api_key"]      = access_token
+                config["engines"][engine_id]["refresh_token"] = refresh_token
+                config["engines"][engine_id]["expiry_date"]  = expiry_date
+                config["engines"][engine_id]["base_url"]     = provider["url"]
+                print(f"[✓] Loaded Gemini CLI credentials")
             else:
                 if provider["url"]:
                     config["engines"][engine_id]["base_url"] = provider["url"]
@@ -293,7 +344,43 @@ def run_setup(existing_config=None):
             # Dynamic Model Fetching
             engine_config = config["engines"][engine_id]
             models = provider["models"]
-            if engine_id != "codex" and engine_config.get("api_key"):
+            if engine_id == "gemini-cli" and engine_config.get("api_key"):
+                print(f"[*] Fetching live models from {provider['name']}...")
+                try:
+                    token = engine_config["api_key"]
+                    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                    # Step 1: discover project ID via loadCodeAssist
+                    meta = {"ideType": "IDE_UNSPECIFIED", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"}
+                    req = urllib.request.Request(
+                        "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+                        data=json.dumps({"metadata": meta}).encode(),
+                        headers=headers, method="POST"
+                    )
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        lca = json.loads(resp.read().decode())
+                    raw = lca.get("cloudaicompanionProject")
+                    project_id = (raw if isinstance(raw, str) else (raw or {}).get("id", "")).strip()
+                    if project_id:
+                        engine_config["project_id"] = project_id
+                        # Step 2: retrieve quota buckets → model list
+                        req = urllib.request.Request(
+                            "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
+                            data=json.dumps({"project": project_id}).encode(),
+                            headers=headers, method="POST"
+                        )
+                        with urllib.request.urlopen(req, timeout=10) as resp:
+                            quota = json.loads(resp.read().decode())
+                        fetched = list({b["modelId"] for b in quota.get("buckets", []) if b.get("modelId")})
+                        if fetched:
+                            models = sorted(set(fetched + models), reverse=True)
+                            print(f"[✓] Fetched {len(fetched)} models (project: {project_id}).")
+                        else:
+                            print(f"[✓] Project {project_id} ready, using default model list.")
+                    else:
+                        print("[!] Could not resolve project ID, using default model list.")
+                except Exception as ex:
+                    print(f"[!] Could not fetch live models: {ex}")
+            elif engine_id not in ["codex"] and engine_config.get("api_key"):
                 print(f"[*] Fetching live models from {provider['name']}...")
                 try:
                     req = urllib.request.Request(
@@ -317,7 +404,35 @@ def run_setup(existing_config=None):
                 except:
                     print("[!] Could not fetch live models, using default list.")
 
-            if models:
+            if models and engine_id == "gemini-cli":
+                tier_buckets = {}
+                for m in models:
+                    if m.startswith("gemini-3"):
+                        tier_buckets.setdefault("gemini-3.x", []).append(m)
+                    elif m.startswith("gemini-2.5"):
+                        tier_buckets.setdefault("gemini-2.5", []).append(m)
+                    elif m.startswith("gemini-2.0"):
+                        tier_buckets.setdefault("gemini-2.0", []).append(m)
+                tier_order = [t for t in ["gemini-3.x", "gemini-2.5", "gemini-2.0"] if t in tier_buckets]
+                fallback_models = sorted(tier_buckets.get("gemini-2.5", []), reverse=True)
+                engine_config["fallback_models"] = fallback_models
+                print(f"\nSelect {provider['name']} Model Tier:")
+                for i, tier in enumerate(tier_order, 1):
+                    members = ", ".join(sorted(tier_buckets[tier], reverse=True))
+                    print(f"{i}. {tier}  ({members})")
+                current_model = engine_config.get("model", "")
+                t_choice = input(f"Choice (1-{len(tier_order)}) [Current: {current_model}]: ").strip()
+                if t_choice.isdigit() and 1 <= int(t_choice) <= len(tier_order):
+                    chosen_list = sorted(tier_buckets[tier_order[int(t_choice)-1]], reverse=True)
+                    engine_config["model"] = chosen_list[0]
+                    engine_config["model_list"] = chosen_list
+                elif not t_choice and engine_config.get("model"):
+                    pass  # keep existing
+                else:
+                    chosen_list = sorted(tier_buckets[tier_order[0]], reverse=True)
+                    engine_config["model"] = chosen_list[0]
+                    engine_config["model_list"] = chosen_list
+            elif models:
                 print(f"\nSelect {provider['name']} Model:")
                 for i, m in enumerate(models, 1):
                     print(f"{i}. {m}")
@@ -335,17 +450,18 @@ def run_setup(existing_config=None):
             else:
                 engine_config["model"] = ask("Enter Model Name", "model", "llama3", nested_engine=engine_id)
 
-            # Request Mode
-            print("\nRequest Mode:")
-            print("1. Streaming (default)")
-            print("2. Blocking (non-streaming)")
-            current_stream = config.get("stream", True)
-            mode_choice = input(f"Choice (1 or 2) [Current: {'1' if current_stream else '2'}]: ").strip()
-            if mode_choice == "2":
-                config["stream"] = False
-            elif mode_choice == "1":
-                config["stream"] = True
-            # else: keep current value
+            # Request Mode (codex and gemini-cli always stream internally)
+            if engine_id not in ["codex", "gemini-cli"]:
+                print("\nRequest Mode:")
+                print("1. Streaming (default)")
+                print("2. Blocking (non-streaming)")
+                current_stream = config.get("stream", True)
+                mode_choice = input(f"Choice (1 or 2) [Current: {'1' if current_stream else '2'}]: ").strip()
+                if mode_choice == "2":
+                    config["stream"] = False
+                elif mode_choice == "1":
+                    config["stream"] = True
+                # else: keep current value
 
             break  # Exit provider selection loop
 

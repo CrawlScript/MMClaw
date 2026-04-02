@@ -645,6 +645,7 @@ class MMClaw(object):
             except Exception as e:
                 print(f"[!] Worker error: {e}")
                 traceback.print_exc()
+                self.connector.send(f"⚠️ Error: {e}")
             finally:
                 self.connector.stop_typing()
                 q.task_done()
