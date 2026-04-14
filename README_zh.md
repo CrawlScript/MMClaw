@@ -117,6 +117,7 @@ MMClaw 支持多种主流 LLM 引擎：
 - **OpenAI**: 通过官方 API 支持全系列 GPT 模型。
 - **OpenAI Codex**: 深度集成，通过 **OAuth 设备码认证** 登录（无需手动管理 API Key）。
 - **Google Gemini**: 通过官方 API 支持全系列 Gemini 模型。
+- **Google Vertex AI**: 通过 Vertex AI API Key 接入 Gemini 模型，无需 OAuth 或项目配置。
 - **Google Gemini CLI**: 深度集成，通过 **OAuth 认证** 登录——复用已有的 Gemini CLI 登录状态，无需 API Key。
 - **DeepSeek**: 通过官方 API 支持全系列 DeepSeek 模型。
 - **Kimi (Moonshot AI)**: 通过官方 API 支持全系列 Kimi 模型。

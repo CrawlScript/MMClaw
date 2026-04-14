@@ -126,6 +126,7 @@ def run_setup(existing_config=None):
             {"id": "openai", "name": "OpenAI", "url": "https://api.openai.com/v1", "models": ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini"]},
             {"id": "codex", "name": "OpenAI Codex (OAuth)", "url": "https://api.openai.com/v1", "models": ["gpt-5.4", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2-codex", "gpt-5.2", "gpt-5.1-codex-max", "gpt-5.1", "gpt-5.1-codex", "gpt-5-codex", "gpt-5-codex-mini", "gpt-5"]},
             {"id": "google", "name": "Google Gemini", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"]},
+            {"id": "vertex_ai", "name": "Google Vertex AI", "url": "https://aiplatform.googleapis.com/v1/publishers/google", "models": ["gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"]},
             {"id": "gemini-cli", "name": "Google Gemini CLI (OAuth)", "url": "https://cloudcode-pa.googleapis.com", "models": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-pro"]},
             {"id": "deepseek", "name": "DeepSeek", "url": "https://api.deepseek.com", "models": ["deepseek-chat", "deepseek-reasoner"]},
             {"id": "openrouter", "name": "OpenRouter", "url": "https://openrouter.ai/api/v1", "models": ["anthropic/claude-3.5-sonnet", "google/gemini-flash-1.5"]},
@@ -380,7 +381,7 @@ def run_setup(existing_config=None):
                         print("[!] Could not resolve project ID, using default model list.")
                 except Exception as ex:
                     print(f"[!] Could not fetch live models: {ex}")
-            elif engine_id not in ["codex"] and engine_config.get("api_key"):
+            elif engine_id not in ["codex", "vertex_ai"] and engine_config.get("api_key"):
                 print(f"[*] Fetching live models from {provider['name']}...")
                 try:
                     req = urllib.request.Request(

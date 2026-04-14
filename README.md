@@ -118,6 +118,7 @@ MMClaw supports a wide range of LLM providers:
 - **OpenAI**: All GPT models via official API.
 - **OpenAI Codex**: Premium support via **OAuth device code authentication** (no manual API key management needed).
 - **Google Gemini**: All Gemini models via official API.
+- **Google Vertex AI**: Gemini models via Vertex AI API key — no OAuth or project setup required.
 - **Google Gemini CLI**: Premium support via **OAuth authentication** — reuses your existing Gemini CLI login, no API key needed.
 - **DeepSeek**: All DeepSeek models via official API.
 - **Kimi (Moonshot AI)**: All Kimi models via official API.

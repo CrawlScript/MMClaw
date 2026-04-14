@@ -273,6 +273,11 @@ class ConfigManager(object):
                 "model": "gemini-1.5-pro",
                 "api_key": None,
                 "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"
+            },
+            "vertex_ai": {
+                "model": "gemini-2.5-flash",
+                "api_key": None,
+                "base_url": "https://aiplatform.googleapis.com/v1/publishers/google"
             }
         },
         "connector_type": "terminal",

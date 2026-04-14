@@ -3,6 +3,7 @@ import random
 import string
 import urllib.request
 import urllib.error
+import urllib.parse
 import base64
 import io
 import time
@@ -83,6 +84,26 @@ class Engine(object):
             self.base_url = "https://chatgpt.com/backend-api/codex"
         elif self.engine_type == "gemini-cli":
             self.base_url = GEMINI_CLI_ENDPOINT
+
+    def _to_gemini_contents(self, messages):
+        """Convert OpenAI-style messages to Gemini contents + optional systemInstruction."""
+        system_instruction = None
+        contents = []
+        for msg in messages:
+            role, content = msg["role"], msg["content"]
+            if role == "system":
+                text = content if isinstance(content, str) else " ".join(i.get("text", "") for i in content if isinstance(i, dict))
+                system_instruction = {"parts": [{"text": text}]}
+                continue
+            gemini_role = "model" if role == "assistant" else "user"
+            if isinstance(content, str):
+                parts = [{"text": content}]
+            elif isinstance(content, list):
+                parts = [{"text": i["text"]} for i in content if i.get("type") == "text"]
+            else:
+                parts = [{"text": str(content)}]
+            contents.append({"role": gemini_role, "parts": parts})
+        return system_instruction, contents
 
     def _refresh_codex_token(self):
         """Refreshes the OAuth token for Codex provider."""
@@ -433,22 +454,7 @@ class Engine(object):
             project_id = self._get_gemini_cli_project_id()
 
             # Convert messages to Gemini format
-            system_instruction = None
-            contents = []
-            for msg in messages:
-                role, content = msg["role"], msg["content"]
-                if role == "system":
-                    text = content if isinstance(content, str) else " ".join(i.get("text", "") for i in content if isinstance(i, dict))
-                    system_instruction = {"parts": [{"text": text}]}
-                    continue
-                gemini_role = "model" if role == "assistant" else "user"
-                if isinstance(content, str):
-                    parts = [{"text": content}]
-                elif isinstance(content, list):
-                    parts = [{"text": i["text"]} for i in content if i.get("type") == "text"]
-                else:
-                    parts = [{"text": str(content)}]
-                contents.append({"role": gemini_role, "parts": parts})
+            system_instruction, contents = self._to_gemini_contents(messages)
 
             model_list = engine_config.get("model_list") or [self.model]
             current_model = model_list[self._gemini_cli_model_idx % len(model_list)]
@@ -561,5 +567,69 @@ class Engine(object):
                 if self.debug:
                     print(f"[gemini-cli] Exception: {e}\n{traceback.format_exc()}")
                 raise
+        elif self.engine_type == "vertex_ai":
+            system_instruction, contents = self._to_gemini_contents(messages)
+            body = {"contents": contents}
+            if system_instruction:
+                body["systemInstruction"] = system_instruction
+
+            key_param = urllib.parse.quote(self.api_key, safe="")
+
+            if self.stream:
+                url = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse&key={key_param}"
+            else:
+                url = f"{self.base_url}/models/{self.model}:generateContent?key={key_param}"
+
+            if self.debug:
+                print(f"\n[LLM Request (vertex_ai)] url={url}\n{json.dumps(body, indent=2)}\n")
+
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            try:
+                full_content = ""
+                with urllib.request.urlopen(req, timeout=120) as response:
+                    if self.stream:
+                        for line in response:
+                            line_str = line.decode("utf-8").strip()
+                            if not line_str.startswith("data: "):
+                                continue
+                            data_str = line_str[6:]
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                                candidates = chunk.get("candidates") or []
+                                if not candidates:
+                                    continue
+                                parts = (candidates[0].get("content") or {}).get("parts") or []
+                                for part in parts:
+                                    if "text" in part:
+                                        full_content += part["text"]
+                            except Exception:
+                                continue
+                    else:
+                        res_data = json.loads(response.read().decode("utf-8"))
+                        candidates = res_data.get("candidates") or []
+                        if candidates:
+                            parts = (candidates[0].get("content") or {}).get("parts") or []
+                            full_content = "".join(p.get("text", "") for p in parts)
+
+                if self.debug:
+                    print(f"\n[LLM Response (vertex_ai)] len={len(full_content)}\n")
+                return {"role": "assistant", "content": full_content}
+            except urllib.error.HTTPError as e:
+                error_body = ""
+                try:
+                    error_body = e.read().decode("utf-8")
+                except Exception:
+                    pass
+                print(f"[!] Engine Error: {e}")
+                if error_body:
+                    print(f"    Response Body: {error_body}")
+                return {"role": "assistant", "content": f"Engine Error: {e}"}
         else:
             return {"role": "assistant", "content": f"Unsupported Engine: {self.engine_type}"}
