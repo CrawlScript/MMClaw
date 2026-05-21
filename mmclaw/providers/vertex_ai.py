@@ -10,6 +10,33 @@ from .base import BaseProvider
 class VertexAIProvider(BaseProvider):
     supports_native_tools = True
 
+    def _to_gemini_content_parts(self, content):
+        if isinstance(content, str):
+            return [{"text": content}]
+        if not isinstance(content, list):
+            return [{"text": str(content)}]
+
+        parts = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "text":
+                parts.append({"text": item.get("text", "")})
+            elif item.get("type") == "image_url":
+                image_url = (item.get("image_url") or {}).get("url", "")
+                if image_url.startswith("data:") and "," in image_url:
+                    header, data = image_url.split(",", 1)
+                    mime_type = header[5:].split(";", 1)[0] or "image/jpeg"
+                    parts.append({
+                        "inlineData": {
+                            "mimeType": mime_type,
+                            "data": data,
+                        }
+                    })
+                elif image_url:
+                    parts.append({"fileData": {"fileUri": image_url}})
+        return parts
+
     def _to_gemini_contents(self, messages):
         system_instruction = None
         contents = []
@@ -35,12 +62,7 @@ class VertexAIProvider(BaseProvider):
 
             parts = []
             if content:
-                if isinstance(content, str):
-                    parts.append({"text": content})
-                elif isinstance(content, list):
-                    parts.extend({"text": i["text"]} for i in content if i.get("type") == "text")
-                else:
-                    parts.append({"text": str(content)})
+                parts.extend(self._to_gemini_content_parts(content))
 
             for call in msg.get("tool_calls") or []:
                 function_call_part = {

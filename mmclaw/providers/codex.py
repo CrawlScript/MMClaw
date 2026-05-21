@@ -89,6 +89,30 @@ class CodexProvider(BaseProvider):
                 converted.append(self._to_json_schema(tool))
         return converted
 
+    def _to_responses_content(self, content):
+        if isinstance(content, str):
+            return content
+        if not isinstance(content, list):
+            return str(content)
+
+        parts = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "text":
+                parts.append({
+                    "type": "input_text",
+                    "text": item.get("text", ""),
+                })
+            elif item.get("type") == "image_url":
+                image_url = (item.get("image_url") or {}).get("url", "")
+                if image_url:
+                    parts.append({
+                        "type": "input_image",
+                        "image_url": image_url,
+                    })
+        return parts
+
     def _to_responses_input(self, messages):
         input_items = []
         for msg in messages:
@@ -114,7 +138,10 @@ class CodexProvider(BaseProvider):
                         "arguments": json.dumps(call.get("args", {}) or {}, ensure_ascii=False),
                     })
                 continue
-            input_items.append({"role": role or "user", "content": msg.get("content", "")})
+            input_items.append({
+                "role": role or "user",
+                "content": self._to_responses_content(msg.get("content", "")),
+            })
         return input_items
 
     def _system_instructions(self, messages):
