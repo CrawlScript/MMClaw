@@ -573,6 +573,7 @@ class MMClaw(object):
                 break
 
             is_background = mode != "chat"
+            history = []
 
             if mode == "heartbeat":
                 silent_tools   = True
