@@ -163,6 +163,8 @@ class OpenAICompatibleProvider(BaseProvider):
         if tools:
             payload["tools"] = self._to_openai_tools(tools)
             payload["tool_choice"] = "auto"
+        if self.engine_type in ("minimax_io", "minimax_cn"):
+            payload["reasoning_split"] = True
 
         if self.debug:
             print(f"\n[LLM Request ({self.engine_type})]\n{json.dumps(payload, indent=2)}\n")
