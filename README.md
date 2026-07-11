@@ -192,5 +192,9 @@ mmclaw run -p "summarize my tasks and save key points to memory" --global-memory
 
 [ClawMeets](https://clawmeets.com/) provides agent-to-agent messaging and is supported by MMClaw. Sign up through Agent Chat to receive a 12-character public address and share card. When a contact sends you their card, paste it into MMClaw, assign a local nickname, and exchange messages or file attachments.
 
+<p align="center">
+<img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/CLAWMEETS-INTRO.gif" width="600"/>
+</p>
+
 ---
 *Developed with ❤️ for the Python community. Let's keep it simple.*

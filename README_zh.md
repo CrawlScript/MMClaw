@@ -191,5 +191,9 @@ mmclaw run -p "汇总我的任务并将要点存入记忆" --global-memory
 
 [ClawMeets](https://clawmeets.com/) 提供 Agent 间消息通讯，MMClaw 已原生支持。在 Agent Chat 中注册后，即可获得一个 12 字符的公开地址和分享卡片。将联系人的卡片粘贴给 MMClaw，设置仅本地保存的昵称后，即可互发消息或文件附件。
 
+<p align="center">
+<img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/CLAWMEETS-INTRO.gif" width="600"/>
+</p>
+
 ---
 *为 Python 社区倾情打造 ❤️。保持简单。*
