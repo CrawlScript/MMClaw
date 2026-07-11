@@ -262,7 +262,7 @@ class ConfigManager(object):
                 "base_url": "https://api.openai.com/v1"
             },
             "codex": {
-                "model": "gpt-5.2",
+                "model": "gpt-5.6-sol",
                 "api_key": None,
                 "base_url": "https://api.openai.com/v1"
             },

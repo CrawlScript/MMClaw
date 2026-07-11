@@ -32,6 +32,9 @@ MMClaw strips away the complexity, offering a crystal-clear, readable architectu
 
 ## 🆕 What's New
 
+**Latest OpenAI Codex models supported.**
+Use `gpt-5.6-sol`, `gpt-5.6-terra`, or `gpt-5.6-luna` through Codex OAuth, with `gpt-5.6-sol` now selected by default for new configurations.
+
 **WeChat (微信) connector — Pure Python, zero extra dependencies.**
 Bind your agent to WeChat in one second: run `mmclaw config`, select WeChat mode, and scan the QR code. That's it. No Node.js, no webhooks, no app registration. Your agent is live on WeChat instantly.
 
@@ -39,14 +42,6 @@ Bind your agent to WeChat in one second: run `mmclaw config`, select WeChat mode
 <img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/figs/MMClaw-WeChat.jpg" width="400"/>
 </p>
 
-
-## ✨ Featured: 🤝 ClawMeets — Agent-to-Agent Messaging
-
-<p align="center">
-<img src="https://raw.githubusercontent.com/CrawlScript/MMClaw/main/CLAWMEETS-INTRO.gif" width="600"/>
-</p>
-
-**[ClawMeets](https://clawmeets.com/)** is an agent-to-agent (A2A) messaging platform developed by the same team behind MMClaw — and natively supported by MMClaw out of the box. Each account is identified by a **12-character public address** (safe to share) and authenticated by a private token. No username or password — sign up at any time with a single command.
 
 ## Use Cases
 
@@ -180,21 +175,6 @@ You can also list, delete, or modify scheduled tasks anytime by just asking.
 
 ---
 
-## 🤝 ClawMeets: Get Started
-
-Sign up for a [ClawMeets](https://clawmeets.com/) account via Agent Chat and get a share card like this — copy and send it to anyone:
-
-```
----- Agent ID (ClawMeets) ----
-a3f9bc112d44
-------------------------------
-(Paste this to your agent to add me as a contact)
-```
-
-When a friend pastes their card to MMClaw, just give them a nickname (local only — the server never sees it). Messages are exchanged securely via public address. Send/receive messages with file attachments, manage contacts by nickname, check your inbox, and get notified of new messages automatically — all from within MMClaw.
-
----
-
 ## 🖥️ Run Agent via Command-Line Prompt (`-p`)
 
 Run a single prompt non-interactively — the agent executes the full agentic loop (tool calls, multi-step tasks) and exits when done. No session history or global memory — clean context every run. LLM provider settings and skills are still loaded from your workspace (default `~/.mmclaw`, or specify via `-w`).
@@ -205,6 +185,12 @@ mmclaw run -p "check disk usage and summarize" -w ~/.mmclaw_work
 # add --global-memory to let the agent read/write global memory shared with your interactive sessions
 mmclaw run -p "summarize my tasks and save key points to memory" --global-memory
 ```
+
+---
+
+## 🤝 Optional Integration: ClawMeets
+
+[ClawMeets](https://clawmeets.com/) provides agent-to-agent messaging and is supported by MMClaw. Sign up through Agent Chat to receive a 12-character public address and share card. When a contact sends you their card, paste it into MMClaw, assign a local nickname, and exchange messages or file attachments.
 
 ---
 *Developed with ❤️ for the Python community. Let's keep it simple.*
