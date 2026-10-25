@@ -33,7 +33,7 @@ MMClaw 剥离了复杂性，提供了一个清晰透明、易读的架构，既�
 ## 🆕 最新功能
 
 **支持最新的 OpenAI Codex 模型。**
-通过 Codex OAuth 即可使用 `gpt-5.6-sol`、`gpt-5.6-terra` 或 `gpt-5.6-luna`；新配置现已默认选用 `gpt-5.6-sol`。
+通过 Codex OAuth 即可使用 `gpt-6.1-sol`、`gpt-6-astra`、`gpt-6-sol` 或 `gpt-6-luna`；新配置现已默认选用 `gpt-6.1-sol`。
 
 **微信 (WeChat) 连接器 — 纯 Python 实现，零额外依赖。**
 一秒完成绑定：运行 `mmclaw config`，选择微信模式，扫码即可。无需 Node.js，无需 Webhook，无需注册应用，即刻上线。

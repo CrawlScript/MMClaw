@@ -54,9 +54,13 @@ class VertexAIProvider(BaseProvider):
                 response = msg.get("response")
                 if response is None:
                     response = {"result": content}
+                function_response = {"name": name, "response": response}
+                provider_call_id = msg.get("provider_call_id")
+                if provider_call_id:
+                    function_response["id"] = provider_call_id
                 contents.append({
                     "role": "user",
-                    "parts": [{"functionResponse": {"name": name, "response": response}}],
+                    "parts": [{"functionResponse": function_response}],
                 })
                 continue
 
@@ -71,6 +75,9 @@ class VertexAIProvider(BaseProvider):
                         "args": call.get("args", {}) or {},
                     }
                 }
+                provider_call_id = call.get("provider_call_id")
+                if provider_call_id:
+                    function_call_part["functionCall"]["id"] = provider_call_id
                 thought_signature = call.get("thoughtSignature") or call.get("thought_signature")
                 if thought_signature:
                     function_call_part["thoughtSignature"] = thought_signature
@@ -120,11 +127,14 @@ class VertexAIProvider(BaseProvider):
                 content += part["text"]
             elif "functionCall" in part:
                 call = part["functionCall"] or {}
+                provider_call_id = call.get("id") or call.get("call_id")
                 tool_call = {
-                    "id": call.get("name", ""),
+                    "id": provider_call_id or call.get("name", ""),
                     "name": call.get("name", ""),
                     "args": call.get("args", {}) or {},
                 }
+                if provider_call_id:
+                    tool_call["provider_call_id"] = provider_call_id
                 thought_signature = part.get("thoughtSignature") or part.get("thought_signature")
                 if thought_signature:
                     tool_call["thoughtSignature"] = thought_signature
@@ -218,10 +228,13 @@ class VertexAIProvider(BaseProvider):
     def tool_result_messages(self, tool_calls, results):
         messages = []
         for call, result in zip(tool_calls, results):
-            messages.append({
+            message = {
                 "role": "tool",
                 "name": call.get("name", ""),
                 "content": result,
                 "response": {"result": result},
-            })
+            }
+            if call.get("provider_call_id"):
+                message["provider_call_id"] = call["provider_call_id"]
+            messages.append(message)
         return messages

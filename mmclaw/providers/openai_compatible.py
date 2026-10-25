@@ -40,14 +40,20 @@ class OpenAICompatibleProvider(BaseProvider):
                 out = {"role": "assistant", "content": msg.get("content") or ""}
                 tool_calls = []
                 for call in msg.get("tool_calls") or []:
-                    tool_calls.append({
+                    provider_call = {
                         "id": call.get("id") or call.get("name") or "call_0",
                         "type": "function",
                         "function": {
                             "name": call.get("name", ""),
                             "arguments": json.dumps(call.get("args", {}) or {}, ensure_ascii=False),
                         },
-                    })
+                    }
+                    # Gemini thinking models attach the encrypted thought
+                    # signature here. It must be replayed unchanged with the
+                    # assistant tool call on the following request.
+                    if call.get("extra_content") is not None:
+                        provider_call["extra_content"] = call["extra_content"]
+                    tool_calls.append(provider_call)
                 if tool_calls:
                     out["tool_calls"] = tool_calls
                 provider_messages.append(out)
@@ -72,11 +78,14 @@ class OpenAICompatibleProvider(BaseProvider):
                 args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
             except Exception:
                 args = {"_raw_arguments": args_raw}
-            tool_calls.append({
+            normalized_call = {
                 "id": call.get("id") or function.get("name") or "",
                 "name": function.get("name") or "",
                 "args": args or {},
-            })
+            }
+            if call.get("extra_content") is not None:
+                normalized_call["extra_content"] = call["extra_content"]
+            tool_calls.append(normalized_call)
         if tool_calls:
             normalized["tool_calls"] = tool_calls
         return normalized
@@ -125,6 +134,8 @@ class OpenAICompatibleProvider(BaseProvider):
                         })
                         if call_delta.get("id"):
                             current["id"] += call_delta["id"]
+                        if call_delta.get("extra_content") is not None:
+                            current["extra_content"] = call_delta["extra_content"]
                         function_delta = call_delta.get("function") or {}
                         if function_delta.get("name"):
                             current["function"]["name"] += function_delta["name"]
@@ -163,6 +174,26 @@ class OpenAICompatibleProvider(BaseProvider):
         if tools:
             payload["tools"] = self._to_openai_tools(tools)
             payload["tool_choice"] = "auto"
+            # Recent OpenAI reasoning models only support function tools on
+            # Chat Completions when reasoning is explicitly disabled. Astra
+            # and GPT-6.1 Sol are intentionally excluded because they require
+            # the Responses API for tool calling.
+            if self.engine_type == "openai" and self.model.startswith(
+                ("gpt-5.4", "gpt-5.5", "gpt-5.6", "gpt-6-sol", "gpt-6-luna")
+            ):
+                payload["reasoning_effort"] = "none"
+            # DeepSeek supports thinking-mode tools, but requires every
+            # reasoning_content field to be replayed on subsequent requests.
+            # MMClaw's shared Chat Completions history does not preserve that
+            # provider-specific field, so use non-thinking mode for native tools.
+            if self.engine_type == "deepseek":
+                payload["reasoning_effort"] = "none"
+            if self.engine_type in ("kimi", "kimi_ai", "kimi_cn"):
+                payload["reasoning_effort"] = "none"
+        elif self.engine_type == "deepseek":
+            reasoning_effort = self.config["engines"]["deepseek"].get("reasoning_effort")
+            if reasoning_effort:
+                payload["reasoning_effort"] = reasoning_effort
         if self.engine_type in ("minimax_io", "minimax_cn"):
             payload["reasoning_split"] = True
 

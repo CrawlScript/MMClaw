@@ -123,12 +123,12 @@ def run_setup(existing_config=None):
         print("\n[1/3] LLM Engine Setup")
 
         BUILTIN_PROVIDERS = [
-            {"id": "openai", "name": "OpenAI", "url": "https://api.openai.com/v1", "models": ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini"]},
-            {"id": "codex", "name": "OpenAI Codex (OAuth)", "url": "https://api.openai.com/v1", "models": ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2-codex", "gpt-5.2", "gpt-5.1-codex-max", "gpt-5.1", "gpt-5.1-codex", "gpt-5-codex", "gpt-5-codex-mini", "gpt-5"]},
-            {"id": "google", "name": "Google Gemini", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"]},
-            {"id": "vertex_ai", "name": "Google Vertex AI", "url": "https://aiplatform.googleapis.com/v1/publishers/google", "models": ["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]},
+            {"id": "openai", "name": "OpenAI", "url": "https://api.openai.com/v1", "models": ["gpt-5.4", "gpt-5.4-mini"]},
+            {"id": "codex", "name": "OpenAI Codex (OAuth)", "url": "https://api.openai.com/v1", "models": ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2-codex", "gpt-5.2", "gpt-5.1-codex-max", "gpt-5.1", "gpt-5.1-codex", "gpt-5-codex", "gpt-5-codex-mini", "gpt-5"]},
+            {"id": "google", "name": "Google Gemini", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "models": ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]},
+            {"id": "vertex_ai", "name": "Google Vertex AI", "url": "https://aiplatform.googleapis.com/v1/publishers/google", "models": ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]},
             {"id": "gemini-cli", "name": "Google Gemini CLI (OAuth)", "url": "https://cloudcode-pa.googleapis.com", "models": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-pro"]},
-            {"id": "deepseek", "name": "DeepSeek", "url": "https://api.deepseek.com", "models": ["deepseek-chat", "deepseek-reasoner"]},
+            {"id": "deepseek", "name": "DeepSeek", "url": "https://api.deepseek.com", "models": ["deepseek-flash", "deepseek-v4-pro"]},
             {"id": "openrouter", "name": "OpenRouter", "url": "https://openrouter.ai/api/v1", "models": ["anthropic/claude-3.5-sonnet", "google/gemini-flash-1.5"]},
             {"id": "kimi_ai", "name": "Kimi Global (Moonshot AI)", "url": "https://api.moonshot.ai/v1", "models": ["kimi-k2.5"]},
             {"id": "kimi_cn", "name": "Kimi China (Moonshot AI)", "url": "https://api.moonshot.cn/v1", "models": ["kimi-k2.5"]},
@@ -390,13 +390,31 @@ def run_setup(existing_config=None):
                     )
                     with urllib.request.urlopen(req, timeout=5) as response:
                         data = json.loads(response.read().decode("utf-8"))
-                        fetched = [m["id"] for m in data.get("data", [])]
+                        if engine_id == "google":
+                            fetched = []
+                            for model_info in data.get("data", []):
+                                model_id = model_info.get("baseModelId") or model_info.get("id", "")
+                                if model_id.startswith("models/"):
+                                    model_id = model_id[len("models/"):]
+                                if model_id:
+                                    fetched.append(model_id)
+                        else:
+                            fetched = [m["id"] for m in data.get("data", [])]
                         if fetched:
                             if "openai.com" in engine_config["base_url"]:
                                 fetched = [m for m in fetched if m.startswith(("gpt-", "o1-"))]
+                                if engine_id == "openai":
+                                    # These models can use Chat Completions for
+                                    # text, but require Responses for tools.
+                                    fetched = [
+                                        m for m in fetched
+                                        if m != "gpt-6-astra" and not m.startswith("gpt-6.1-sol")
+                                    ]
 
-                            models = list(set(fetched + models))
-                            FEATURED = ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini", "deepseek-chat", "deepseek-reasoner", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp", "kimi-k2.5"]
+                            # DeepSeek's live catalog is authoritative; its retired
+                            # aliases must not be merged back in from fallback data.
+                            models = list(set(fetched if engine_id == "deepseek" else fetched + models))
+                            FEATURED = ["gpt-5.4", "gpt-5.4-mini", "deepseek-flash", "deepseek-v4-pro", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "kimi-k2.5"]
                             def sort_key(name):
                                 try: return (FEATURED.index(name), name)
                                 except ValueError: return (len(FEATURED), name)

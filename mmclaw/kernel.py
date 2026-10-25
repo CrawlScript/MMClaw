@@ -822,6 +822,11 @@ class MMClaw(object):
         if text.strip() == "/new":
             self.memory.reset()
             self.connector.send("✨ Session reset! Starting fresh.")
+            # TerminalConnector clears its input gate before invoking this
+            # synchronous command. No worker iteration runs for /new, so it
+            # must release that gate here instead of waiting for _worker's
+            # finally block.
+            self.connector.stop_typing()
             return
         if not self.use_stateless_arg_connector and random.random() < 0.15:
             self.connector.send("💡 Tip: type /stop at any time to cancel the current job.")

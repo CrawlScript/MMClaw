@@ -257,17 +257,17 @@ class ConfigManager(object):
         },
         "engines": {
             "openai": {
-                "model": "gpt-4o",
+                "model": "gpt-5.4",
                 "api_key": None,
                 "base_url": "https://api.openai.com/v1"
             },
             "codex": {
-                "model": "gpt-5.6-sol",
+                "model": "gpt-6.1-sol",
                 "api_key": None,
                 "base_url": "https://api.openai.com/v1"
             },
             "deepseek": {
-                "model": "deepseek-chat",
+                "model": "deepseek-flash",
                 "api_key": None,
                 "base_url": "https://api.deepseek.com"
             },
@@ -282,12 +282,12 @@ class ConfigManager(object):
                 "base_url": "https://api.moonshot.cn/v1"
             },
             "google": {
-                "model": "gemini-1.5-pro",
+                "model": "gemini-3.8-flash",
                 "api_key": None,
                 "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"
             },
             "vertex_ai": {
-                "model": "gemini-2.5-flash",
+                "model": "gemini-3.8-flash",
                 "api_key": None,
                 "base_url": "https://aiplatform.googleapis.com/v1/publishers/google"
             }
@@ -381,6 +381,34 @@ class ConfigManager(object):
                 if g_config.get("base_url") == "https://generativelanguage.googleapis.com/v1beta":
                     print("[*] Updating Google Gemini base_url to OpenAI-compatible endpoint...")
                     g_config["base_url"] = "https://generativelanguage.googleapis.com/v1beta/openai"
+                    needs_save = True
+
+                legacy_model = g_config.get("model")
+                if legacy_model in ("gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"):
+                    print(f"[*] Migrating retired Google Gemini model '{legacy_model}' to 'gemini-3.8-flash'...")
+                    g_config["model"] = "gemini-3.8-flash"
+                    needs_save = True
+
+            # Migration: update the previous Vertex AI default model.
+            if "engines" in config and "vertex_ai" in config["engines"]:
+                vertex_config = config["engines"]["vertex_ai"]
+                if vertex_config.get("model") == "gemini-2.5-flash":
+                    print("[*] Updating Vertex AI default model to 'gemini-3.8-flash'...")
+                    vertex_config["model"] = "gemini-3.8-flash"
+                    needs_save = True
+
+            # Migration: retired DeepSeek aliases -> current Flash model.
+            # Preserve the old aliases' thinking behavior explicitly.
+            if "engines" in config and "deepseek" in config["engines"]:
+                d_config = config["engines"]["deepseek"]
+                legacy_model = d_config.get("model")
+                if legacy_model in ("deepseek-chat", "deepseek-reasoner"):
+                    print(f"[*] Migrating retired DeepSeek model '{legacy_model}' to 'deepseek-flash'...")
+                    d_config["model"] = "deepseek-flash"
+                    d_config.setdefault(
+                        "reasoning_effort",
+                        "none" if legacy_model == "deepseek-chat" else "high",
+                    )
                     needs_save = True
 
             # Migration: Connectors

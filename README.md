@@ -33,7 +33,7 @@ MMClaw strips away the complexity, offering a crystal-clear, readable architectu
 ## 🆕 What's New
 
 **Latest OpenAI Codex models supported.**
-Use `gpt-5.6-sol`, `gpt-5.6-terra`, or `gpt-5.6-luna` through Codex OAuth, with `gpt-5.6-sol` now selected by default for new configurations.
+Use `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-sol`, or `gpt-6-luna` through Codex OAuth, with `gpt-6.1-sol` now selected by default for new configurations.
 
 **WeChat (微信) connector — Pure Python, zero extra dependencies.**
 Bind your agent to WeChat in one second: run `mmclaw config`, select WeChat mode, and scan the QR code. That's it. No Node.js, no webhooks, no app registration. Your agent is live on WeChat instantly.
