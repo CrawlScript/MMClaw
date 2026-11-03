@@ -26,13 +26,16 @@ def load_config():
         print("NO_PROVIDER")
         sys.exit(1)
     api_key = cfg.get(provider, {}).get("api_key", "").strip()
-    if not api_key:
+    if not api_key and provider not in KEYLESS_PROVIDERS:
         print(f"NO_API_KEY:{provider}")
         sys.exit(1)
     return provider, api_key
 
 
-ALL_PROVIDERS = ("serper", "serpapi", "brave", "tavily")
+ALL_PROVIDERS = ("serper", "serpapi", "brave", "tavily", "keenable")
+# Providers that work without an API key (a key, if saved, is still used).
+KEYLESS_PROVIDERS = ("keenable",)
+KEENABLE_SNIPPET_MAX_CHARS = 1000
 
 
 def save_config(provider: str, api_key: str):
@@ -140,11 +143,33 @@ def tavily_search(
     ]
 
 
+def keenable_search(query: str, api_key: str, count: int, **_) -> list:
+    headers = {"Content-Type": "application/json", "X-Keenable-Title": "MMClaw"}
+    url = "https://api.keenable.ai/v1/search/public"
+    if api_key:
+        headers["X-API-Key"] = api_key
+        url = "https://api.keenable.ai/v1/search"
+    body = json.dumps({"query": query, "max_results": count}).encode()
+    req = urllib.request.Request(url, data=body, headers=headers)
+    with urllib.request.urlopen(req, timeout=15) as res:
+        data = json.loads(res.read())
+    return [
+        {
+            "title":   r.get("title"),
+            "url":     r.get("url"),
+            "snippet": r.get("description") or (r.get("snippet") or "")[:KEENABLE_SNIPPET_MAX_CHARS],
+        }
+        for r in data.get("results", [])
+        if r.get("url")
+    ]
+
+
 PROVIDERS = {
     "serper":  serper_search,
     "serpapi": serpapi_search,
     "brave":   brave_search,
     "tavily":  tavily_search,
+    "keenable": keenable_search,
 }
 
 
@@ -194,7 +219,8 @@ def cmd_status(args):
         sys.exit(1)
     api_key = cfg.get(provider, {}).get("api_key", "").strip()
     masked = (api_key[:8] + "...") if api_key else ""
-    print(json.dumps({"provider": provider, "api_key_preview": masked, "configured": bool(api_key)}))
+    configured = bool(api_key) or provider in KEYLESS_PROVIDERS
+    print(json.dumps({"provider": provider, "api_key_preview": masked, "configured": configured}))
 
 
 def main():
@@ -221,7 +247,8 @@ def main():
 
     p = sub.add_parser("setup", help="Save provider and API key")
     p.add_argument("provider", choices=list(ALL_PROVIDERS))
-    p.add_argument("api_key")
+    p.add_argument("api_key", nargs="?", default="",
+                   help="API key (optional for keenable)")
 
     sub.add_parser("status", help="Show current configuration")
 

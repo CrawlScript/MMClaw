@@ -75,7 +75,7 @@ Returns a JSON array of `{title, url, snippet}` objects (Tavily also includes `s
 ```
 python $MMCLAW_WORKSPACE/skills/web-search/web_search.py setup <provider> <api_key>
 ```
-`provider` must be one of: `tavily`, `serper`, `serpapi`, `brave`.
+`provider` must be one of: `tavily`, `serper`, `serpapi`, `brave`, `keenable`. The API key is optional for `keenable` (`setup keenable` works without one).
 
 ---
 
@@ -101,6 +101,11 @@ If not configured, show this list and ask the user to choose. Translate descript
 - Free: None, paid only
 - Pro: Independent search index, not reliant on Google
 - Con: Requires credit card, no free tier
+
+**5. Keenable** — https://keenable.ai
+- Free: works with no API key and no sign-up (`setup keenable`)
+- Pro: Zero setup; an optional API key raises rate limits
+- Con: No Tavily-style depth/topic/domain filters
 
 Once the user chooses a provider and shares their API key, run:
 ```
